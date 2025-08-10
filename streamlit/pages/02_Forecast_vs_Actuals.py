@@ -33,10 +33,14 @@ if df.empty:
 brands = sorted(df["brand"].unique().tolist())
 brand = st.sidebar.selectbox("Brand", brands)
 
-min_date = df["month_start"].min()
-max_date = df["month_start"].max()
+min_date = df["month_start"].min().to_pydatetime()
+max_date = df["month_start"].max().to_pydatetime()
+
 date_range = st.sidebar.slider(
-    "Date range", min_value=min_date, max_value=max_date, value=(min_date, max_date)
+    "Date range",
+    min_value=min_date,
+    max_value=max_date,
+    value=(min_date, max_date),
 )
 
 # Filtered frame

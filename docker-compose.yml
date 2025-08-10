@@ -97,6 +97,8 @@ services:
         condition: service_healthy
     ports:
       - "8501:8501"
+    volumes:
+      - ./streamlit:/app
 
   # Optional BI UI (uses its own H2 by default; connect to Postgres in UI)
   metabase:
