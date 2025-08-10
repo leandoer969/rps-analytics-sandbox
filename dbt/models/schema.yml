@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  # Staging views
+  - name: stg_sales
+    columns:
+      - name: date_id
+        tests: [not_null]
+      - name: product_id
+        tests: [not_null]
+      - name: region_id
+        tests: [not_null]
+  - name: stg_rebates
+    columns:
+      - name: date_id
+        tests: [not_null]
+      - name: product_id
+        tests: [not_null]
+      - name: region_id
+        tests: [not_null]
+  - name: stg_forecast
+    columns:
+      - name: date_id
+        tests: [not_null]
+      - name: product_id
+        tests: [not_null]
+      - name: region_id
+        tests: [not_null]
+
+  # Marts
+  - name: mart_gtn_waterfall
+    columns:
+      - name: year
+        tests: [not_null]
+      - name: month
+        tests: [not_null]
+      - name: brand
+        tests: [not_null]
+      - name: canton
+        tests: [not_null]
+  - name: mart_brand_perf
+    columns:
+      - name: year
+        tests: [not_null]
+      - name: month
+        tests: [not_null]
+      - name: brand
+        tests: [not_null]
+      - name: canton
+        tests: [not_null]
+  - name: mart_forecast_accuracy
+    columns:
+      - name: year
+        tests: [not_null]
+      - name: month
+        tests: [not_null]
+      - name: brand
+        tests: [not_null]
+      - name: canton
+        tests: [not_null]
