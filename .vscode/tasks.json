@@ -60,6 +60,19 @@
       "type": "shell",
       "command": "sqlfluff fix dbt/models",
       "problemMatcher": []
+    },
+    {
+      "label": "DB: init schema",
+      "type": "shell",
+      "command": "docker compose run --rm db-init",
+      "dependsOn": "Compose: up postgres",
+      "problemMatcher": []
+    },
+    {
+      "label": "Bootstrap: fresh reset + seed + dbt",
+      "type": "shell",
+      "command": "docker compose down -v && docker compose up -d postgres && docker compose run --rm db-init && SCALE=${input:scale} docker compose run --rm generator && docker compose run --rm dbt bash -lc \"dbt deps && dbt build\"",
+      "problemMatcher": []
     }
   ]
 }

@@ -1,91 +1,111 @@
 version: "3.9"
 
+name: rps-analytics-sandbox
+
 services:
   postgres:
     image: postgres:16
-    container_name: rps_postgres
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    env_file: .env
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      TZ: ${TZ}
+      POSTGRES_DB: ${POSTGRES_DB:-rps}
+      POSTGRES_USER: ${POSTGRES_USER:-rps_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rps_password}
+    ports:
+      - "5432:5432"
     volumes:
-      - ./db/init:/docker-entrypoint-initdb.d
+      - ./db/init:/docker-entrypoint-initdb.d:ro
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h localhost -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+        ]
       interval: 5s
       timeout: 3s
-      retries: 20
+      retries: 30
+    restart: unless-stopped
 
-  generator:
-    build: ./generator
-    platform: linux/arm64
-    container_name: rps_generator
+  # One-shot job to (re)apply schema safely (DDL uses IF NOT EXISTS)
+  db-init:
+    image: postgres:16
     depends_on:
       postgres:
         condition: service_healthy
+    env_file: .env
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      SCALE: ${SCALE:-small}
-      TZ: ${TZ}
-    command: ["python", "generate.py"]
-
-  dbt:
-    image: ghcr.io/dbt-labs/dbt-postgres:latest
-    container_name: rps_dbt
-    working_dir: /usr/app
-    environment:
-      DBT_PROFILES_DIR: /usr/app
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      TZ: ${TZ}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      PGPASSWORD: ${POSTGRES_PASSWORD:-rps_password}
     volumes:
-      - ./dbt:/usr/app
+      - ./db/init:/schema:ro
+    # Use array form so every arg is explicit; forces TCP to the 'postgres' host.
+    entrypoint:
+      [
+        "psql",
+        "-h",
+        "postgres",
+        "-p",
+        "5432",
+        "-U",
+        "${POSTGRES_USER:-rps_user}",
+        "-d",
+        "${POSTGRES_DB:-rps}",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-f",
+        "/schema/01_schema.sql",
+      ]
 
-  streamlit:
-    build: ./streamlit
-    platform: linux/arm64
-    container_name: rps_streamlit
+  # Data generator (Python) – builds locally
+  generator:
+    build:
+      context: ./generator
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-rps}
+      POSTGRES_USER: ${POSTGRES_USER:-rps_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rps_password}
     depends_on:
       postgres:
         condition: service_healthy
+
+  # dbt (Postgres adapter) – local image to avoid arm64 pull issues
+  dbt:
+    build:
+      context: ./dbt
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DBT_PROFILES_DIR: /app
+      POSTGRES_HOST: postgres
+    volumes:
+      - ./dbt:/app
+
+  # Streamlit dashboards
+  streamlit:
+    build:
+      context: ./streamlit
+    env_file: .env
+    environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      TZ: ${TZ}
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8501:8501"
-    volumes:
-      - ./streamlit:/app
 
+  # Optional BI UI (uses its own H2 by default; connect to Postgres in UI)
   metabase:
     image: metabase/metabase:latest
-    container_name: rps_metabase
-    ports:
-      - "3000:3000"
-    environment:
-      TZ: ${TZ}
     depends_on:
       postgres:
-        condition: service_healthy
-    volumes:
-      - ./metabase-data:/metabase-data
+        condition: service_started
+    ports:
+      - "3000:3000"
 
 volumes:
   pgdata:
