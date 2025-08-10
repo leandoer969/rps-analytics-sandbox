@@ -22,6 +22,7 @@ services:
 
   generator:
     build: ./generator
+    platform: linux/arm64
     container_name: rps_generator
     depends_on:
       postgres:
@@ -56,6 +57,7 @@ services:
 
   streamlit:
     build: ./streamlit
+    platform: linux/arm64
     container_name: rps_streamlit
     depends_on:
       postgres:
