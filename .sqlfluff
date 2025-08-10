@@ -1,17 +1,13 @@
 [sqlfluff]
 dialect = postgres
-templater = jinja
 max_line_length = 100
-exclude_rules = L031  # allow implicit aliasing for brevity in training
 
-[sqlfluff:rules:L010]
-capitalisation_policy = upper  # keywords UPPER
+[sqlfluff:rules:layout.indent]
+tab_space_size = 4
 
-[sqlfluff:rules:L014]
-unquoted_identifiers_policy = lower  # identifiers lower
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = upper
 
-[sqlfluff:rules:L029]
-allow_tab_indentation = false
-
-[sqlfluff:indentation]
-indented_joins = True
+[sqlfluff:rules:capitalisation.identifiers]
+capitalisation_policy = lower
+unquoted_identifiers_policy = all
