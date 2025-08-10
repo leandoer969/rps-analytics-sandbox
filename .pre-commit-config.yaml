@@ -1,0 +1,49 @@
+repos:
+  # Core hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+
+  # Python (formatter then linter)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.7
+    hooks:
+      - id: ruff-format
+      - id: ruff
+        args: [--fix]
+
+  # SQL (lint and optional fix)
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: 3.1.0 # 3.1.1 to work with sqlfluff-templater-dbt
+    hooks:
+      - id: sqlfluff-lint
+        # additional_dependencies: [sqlfluff-templater-dbt==3.1.1]
+      - id: sqlfluff-fix
+        # additional_dependencies: [sqlfluff-templater-dbt==3.1.1]
+        stages: [manual]
+
+  # Dockerfile lint
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint
+        files: ^(Dockerfile|.*/Dockerfile)$
+
+  # YAML lint
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        files: \.ya?ml$
+
+  # Prettier for Markdown/JSON/YAML (requires Node installed)
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.6.2 # any valid tag from this fork works; 3.3.3, 3.4.x, 3.6.x, etc.
+    hooks:
+      - id: prettier
+        files: \.(md|ya?ml|json)$
