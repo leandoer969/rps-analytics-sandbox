@@ -73,6 +73,11 @@
       "type": "shell",
       "command": "docker compose down -v && docker compose up -d postgres && docker compose run --rm db-init && SCALE=${input:scale} docker compose run --rm generator && docker compose run --rm dbt bash -lc \"dbt deps && dbt build\"",
       "problemMatcher": []
+    },
+    {
+      "label": "dbt: clean",
+      "type": "shell",
+      "command": "docker compose run --rm dbt clean"
     }
   ]
 }
