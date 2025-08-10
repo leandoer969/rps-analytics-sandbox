@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "charliermarsh.ruff",
+    "esbenp.prettier-vscode",
+    "EditorConfig.EditorConfig",
+    "redhat.vscode-yaml",
+    "ms-ossdata.vscode-postgresql",
+    "innoverio.vscode-dbt-power-user",
+    "ms-azuretools.vscode-docker",
+    "sqlfluff.vscode-sqlfluff"
+  ]
+}

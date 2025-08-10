@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Open Streamlit in browser",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:8501",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "Open Metabase in browser",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}"
+    }
+  ]
+}

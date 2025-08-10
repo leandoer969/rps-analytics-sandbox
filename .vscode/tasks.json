@@ -1,0 +1,65 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "scale",
+      "type": "pickString",
+      "description": "Data scale for generator",
+      "options": ["small", "medium"],
+      "default": "small"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "Compose: up postgres",
+      "type": "shell",
+      "command": "docker compose up -d postgres",
+      "problemMatcher": []
+    },
+    {
+      "label": "Compose: generate data",
+      "type": "shell",
+      "command": "SCALE=${input:scale} docker compose run --rm generator",
+      "dependsOn": "Compose: up postgres",
+      "problemMatcher": []
+    },
+    {
+      "label": "dbt: build",
+      "type": "shell",
+      "command": "docker compose run --rm dbt bash -lc \"dbt deps && dbt build\"",
+      "dependsOn": "Compose: up postgres",
+      "problemMatcher": []
+    },
+    {
+      "label": "Apps: up streamlit + metabase",
+      "type": "shell",
+      "command": "docker compose up -d streamlit metabase",
+      "dependsOn": "Compose: up postgres",
+      "problemMatcher": []
+    },
+    {
+      "label": "Compose: down",
+      "type": "shell",
+      "command": "docker compose down",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint: python (ruff fix)",
+      "type": "shell",
+      "command": "ruff format . && ruff check . --fix",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint: sql (sqlfluff lint)",
+      "type": "shell",
+      "command": "sqlfluff lint dbt/models",
+      "problemMatcher": []
+    },
+    {
+      "label": "Fix: sql (sqlfluff fix)",
+      "type": "shell",
+      "command": "sqlfluff fix dbt/models",
+      "problemMatcher": []
+    }
+  ]
+}
