@@ -1,13 +1,13 @@
-rps_profile:
+rps:
   target: dev
   outputs:
     dev:
       type: postgres
-      host: "{{ env_var('POSTGRES_HOST') | default('localhost') }}"
-      user: "{{ env_var('POSTGRES_USER') | default('rps_user') }}"
-      password: "{{ env_var('POSTGRES_PASSWORD') | default('rps_password') }}"
-      port: "{{ env_var('POSTGRES_PORT') | default('5432') | int }}"
-      dbname: "{{ env_var('POSTGRES_DB') | default('rps') }}"
-      schema: "rps"
+      host: "{{ env_var('POSTGRES_HOST', 'postgres') }}"
+      user: "{{ env_var('POSTGRES_USER', 'rps_user') }}"
+      password: "{{ env_var('POSTGRES_PASSWORD', 'rps_password') }}"
+      port: "{{ env_var('POSTGRES_PORT', '5432') | int }}"
+      dbname: "{{ env_var('POSTGRES_DB', 'rps') }}"
+      schema: rps
       threads: 4
       keepalives_idle: 0

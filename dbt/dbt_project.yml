@@ -1,15 +1,13 @@
-name: "rps_dbt"
-version: "1.0.0"
+name: "rps"
+version: "1.0"
 config-version: 2
-profile: "rps_profile"
-model-paths: ["models"]
-seed-paths: ["seeds"]
-test-paths: ["tests"]
+
+profile: "rps"
 
 models:
-  rps_dbt:
-    +materialized: view
+  rps:
+    +schema: rps
     staging:
       +materialized: view
     marts:
-      +materialized: view
+      +materialized: table
