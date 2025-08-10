@@ -1,0 +1,16 @@
+version: 2
+
+models:
+  - name: stg_sales
+    columns:
+      - name: date_id
+        tests: [not_null]
+      - name: product_id
+        tests: [not_null]
+      - name: region_id
+        tests: [not_null]
+
+  - name: mart_gtn_waterfall
+    columns:
+      - name: net_sales_chf
+        tests: [not_null]
