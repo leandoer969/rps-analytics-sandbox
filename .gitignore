@@ -12,3 +12,16 @@ streamlit/.streamlit/secrets.toml
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
+
+# dbt artefacts
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/.user.yml
+
+# Python noise
+**/__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
