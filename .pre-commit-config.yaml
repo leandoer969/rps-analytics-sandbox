@@ -18,14 +18,24 @@ repos:
         args: [--fix]
 
   # SQL (lint and optional fix)
-  - repo: https://github.com/sqlfluff/sqlfluff
-    rev: 3.1.0 # 3.1.1 to work with sqlfluff-templater-dbt
+  - repo: local
     hooks:
       - id: sqlfluff-lint
-        # additional_dependencies: [sqlfluff-templater-dbt==3.1.1]
+        name: sqlfluff-lint
+        entry: sqlfluff
+        language: python
+        additional_dependencies: ["sqlfluff==3.1.1"]
+        files: ^(db/init/|dbt/models/).+\.sql$
+        exclude: ^dbt/(target|logs|dbt_packages)/
+        args: ["lint"]
       - id: sqlfluff-fix
-        # additional_dependencies: [sqlfluff-templater-dbt==3.1.1]
-        stages: [manual]
+        name: sqlfluff-fix
+        entry: sqlfluff
+        language: python
+        additional_dependencies: ["sqlfluff==3.1.1"]
+        files: ^(db/init/|dbt/models/).+\.sql$
+        exclude: ^dbt/(target|logs|dbt_packages)/
+        args: ["fix", "--force"]
 
   - repo: https://github.com/hadolint/hadolint
     rev: v2.12.0

@@ -6,7 +6,6 @@ profile: "rps"
 
 models:
   rps:
-    +schema: rps
     staging:
       +materialized: view
     marts:

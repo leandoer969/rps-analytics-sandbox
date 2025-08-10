@@ -1,74 +1,44 @@
 WITH s AS (
     SELECT
-        date_id,
-        product_id,
-        region_id,
-        SUM(units) AS units,
-        SUM(gross_sales_chf) AS gross_sales_chf
-    FROM rps.fct_sales
-    GROUP BY 1, 2, 3
+        d.year,
+        d.month,
+        p.brand,
+        r.canton,
+        sum(s.units) AS units,
+        sum(s.gross_sales_chf) AS gross_sales_chf
+    FROM rps.fct_sales AS s
+    INNER JOIN rps.dim_date AS d ON s.date_id = d.date_id
+    INNER JOIN rps.dim_product AS p ON s.product_id = p.product_id
+    INNER JOIN rps.dim_region AS r ON s.region_id = r.region_id
+    GROUP BY 1, 2, 3, 4
 ),
 
-p AS (
+pr AS (
     SELECT
-        product_id,
-        brand,
-        indication
-    FROM rps.dim_product
-),
-
-r AS (
-    SELECT
-        region_id,
-        canton,
-        language_region
-    FROM rps.dim_region
-),
-
-d AS (
-    SELECT
-        date_id,
-        year,
-        month,
-        week
-    FROM rps.dim_date
-),
-
-promo AS (
-    SELECT
-        date_id,
-        product_id,
-        region_id,
-        SUM(spend_chf) AS promo_spend,
-        SUM(touchpoints) AS touches
-    FROM rps.fct_promo
-    GROUP BY 1, 2, 3
+        d.year,
+        d.month,
+        p.brand,
+        r.canton,
+        sum(pp.spend_chf) AS promo_spend
+    FROM rps.fct_promo AS pp
+    INNER JOIN rps.dim_date AS d ON pp.date_id = d.date_id
+    INNER JOIN rps.dim_product AS p ON pp.product_id = p.product_id
+    INNER JOIN rps.dim_region AS r ON pp.region_id = r.region_id
+    GROUP BY 1, 2, 3, 4
 )
 
 SELECT
-    s.date_id,
-    d.year,
-    d.month,
-    d.week,
-    s.product_id,
-    p.brand,
-    p.indication,
-    s.region_id,
-    r.canton,
-    r.language_region,
+    s.year,
+    s.month,
+    s.brand,
+    s.canton,
     s.units,
     s.gross_sales_chf,
-    pr.promo_spend,
-    pr.touches
+    coalesce(pr.promo_spend, 0.0) AS promo_spend
 FROM s
-INNER JOIN p
-    ON s.product_id = p.product_id
-INNER JOIN r
-    ON s.region_id = r.region_id
-INNER JOIN d
-    ON s.date_id = d.date_id
-LEFT JOIN promo AS pr
+LEFT JOIN pr
     ON
-        s.date_id = pr.date_id
-        AND s.product_id = pr.product_id
-        AND s.region_id = pr.region_id;
+        s.year = pr.year
+        AND s.month = pr.month
+        AND s.brand = pr.brand
+        AND s.canton = pr.canton
