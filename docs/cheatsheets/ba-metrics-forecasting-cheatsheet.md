@@ -25,42 +25,49 @@ This sheet summarizes the **metrics, SQL patterns, and forecasting methods** you
 
 **Units**
 
-- Raw volume at the chosen grain (brand/sku × region × period).
+- Raw volume at the chosen grain (brand/SKU × region × period).
 - _Careful:_ changes in pack size or SKU mix can mask trends.
 
 **Net Sales (≈ Net Revenue)**
-\(\textbf{Net Sales} = \text{Gross Sales} - \text{Rebates/Discounts}\)
+`Net Sales = Gross Sales - Rebates/Discounts`
 
 **ASP (Average Selling Price)**
-\(\textbf{ASP} = \frac{\text{Net Sales}}{\text{Units}}\)
+`ASP = Net Sales / Units`
 
 - _Careful:_ segment/pack mix affects ASP; consider mix-adjusted ASP.
 
 **Share & Growth**
 
-- **Market Share** = Your Units ÷ Market Units (or Net Sales ÷ Market Net Sales).
-- **Growth vs LY** = \(\frac{\text{This} - \text{LY}}{\text{LY}}\). Align calendars; handle missing months.
+- **Market Share** = `Your Units / Market Units` _(or `Net Sales / Market Net Sales`)_.
+- **Growth vs LY** = `(This - LY) / LY`
+  _Align calendars; handle missing months; if `LY = 0`, return NULL._
 
 **Promo Efficiency**
 
-- **Lift** = (Units during promo − Baseline) ÷ Baseline.
-- **ROI** = Incremental Net Sales ÷ Promo Spend.
+- **Lift** = `(Units during promo - Baseline) / Baseline`
+- **ROI** = `Incremental Net Sales / Promo Spend`
 
 **SQL snippet (MoM growth with LAG):**
 
 ```sql
 WITH m AS (
-  SELECT make_date(year, month, 1) AS month_start, brand,
-         SUM(net_sales_chf) AS net_sales
+  SELECT
+    make_date(year, month, 1) AS month_start,
+    brand,
+    SUM(net_sales_chf) AS net_sales
   FROM rps.mart_gtn_waterfall
-  GROUP BY 1,2
+  GROUP BY 1, 2
 )
-SELECT month_start, brand, net_sales,
-       LAG(net_sales) OVER (PARTITION BY brand ORDER BY month_start) AS prev,
-       CASE WHEN LAG(net_sales) OVER (PARTITION BY brand ORDER BY month_start)=0
-            THEN NULL
-            ELSE net_sales / NULLIF(LAG(net_sales) OVER (PARTITION BY brand ORDER BY month_start),0) - 1
-       END AS mom_growth
+SELECT
+  month_start,
+  brand,
+  net_sales,
+  LAG(net_sales) OVER (PARTITION BY brand ORDER BY month_start) AS prev,
+  CASE
+    WHEN NULLIF(LAG(net_sales) OVER (PARTITION BY brand ORDER BY month_start), 0) IS NULL
+      THEN NULL
+    ELSE net_sales / NULLIF(LAG(net_sales) OVER (PARTITION BY brand ORDER BY month_start), 0) - 1
+  END AS mom_growth
 FROM m
 ORDER BY brand, month_start;
 ```
@@ -101,7 +108,12 @@ ORDER BY month_start, brand, canton;
 ## Supply & Operations KPIs
 
 **Days of Supply (DOS)**
-\(\textbf{DOS} = \frac{\text{Inventory On Hand}}{\text{Avg Daily Demand}}\)
+`DOS = Inventory_on_hand / Average_daily_demand`
+
+- Pick a demand window that matches reality (e.g., 7, 14, or 28 days rolling average).
+- If `Average_daily_demand = 0`, set DOS to `NULL` (or a capped max) to avoid divide-by-zero.
+- Align units: if inventory is in packs but demand is in units/day, convert before dividing.
+- Optional: flag risk when `DOS < X` days (e.g., `< 7` days for red status).
 
 **Service Level / OOS Flags**
 
@@ -139,33 +151,36 @@ ORDER BY product_id, date_actual;
 
 **1) Baseline**
 
-- Naive seasonal, moving average, or last-4-week mean:
-  \(\hat y*t = \text{mean}(y*{t-1..t-4})\)
+- Naive seasonal / moving average / last-4-period mean
+  `ŷ_t = mean(y_{t-1}, y_{t-2}, y_{t-3}, y_{t-4})`
+  _Tip:_ Choose the window to match seasonality (e.g., 7 for daily, 12 for monthly).
 
-**2) Simple Causal (our page model)**
-\(\hat y_t = \alpha \cdot \text{PromoSpend}\_t + \beta \cdot \text{RebateRate}\_t + \text{Baseline}(y)\)
+**2) Simple causal (as used in this sandbox)**
 
-- Fit with **OLS**; grid search, or **scipy.optimize**.
-- Add **promo lag** (effects show with delay).
+- `ŷ_t = α * PromoSpend_t + β * RebateRate_t + Baseline_t`
+  Fit with OLS, grid search, or `scipy.optimize`.
+  Add promo lag if effects are delayed: use `PromoSpend_{t-L}` for lag `L`.
 
-**3) Classical TS**
+**3) Classical time-series**
 
-- **ETS/Holt-Winters** (level/trend/seasonal)
-- **ARIMA/SARIMA** (AR, differencing, MA; seasonal components)
+- ETS / Holt-Winters (level, trend, seasonality)
+- ARIMA / SARIMA (AR terms, differencing, MA terms; plus seasonal components)
 
-**4) ML**
+**4) Machine learning**
 
-- **XGBoost/LightGBM**, Random Forests with calendar, price, promo, lags; careful with CV.
+- XGBoost / LightGBM / Random Forests with calendar, price, promo, and lagged features
+  _Caution:_ Use time-aware cross-validation and guard against leakage.
 
 **5) Validation**
 
-- **Rolling-origin** (time-aware CV). Avoid leakage: use past-only features for t.
+- Rolling-origin (expanding window) validation.
+- No leakage: only past information may be used to predict time `t`.
 
-**When to prefer which?**
+**When to prefer which**
 
-- Short horizon + few features → ETS/ARIMA.
-- Strong drivers (price/promo) → OLS/GLM/GBDT.
-- Cold starts / new SKUs → hierarchy, pooling, similarity.
+- Short horizon + few features → ETS / ARIMA.
+- Strong causal drivers (price/promo) → OLS / GLM / GBDT (e.g., XGBoost).
+- New SKUs / sparse history → hierarchical pooling, similarity, or simple baselines + business rules.
 
 ---
 
