@@ -1,284 +1,321 @@
-# Business Analytics Metrics & Forecasting — Pocket Guide
+# BA Metrics & Forecasting Cheat Sheet
+
+**Quick links:** [KPI](#kpi) · [GTN](#gtn) · [ASP](#asp) · [DOS](#dos) · [MAPE](#mape) · [RMSE](#rmse) · [WAPE](#wape) · [MAE](#mae) · [ARIMA](#arima) · [ETS](#ets) · [Prophet](#prophet) · [OLS](#ols) · [CTE](#cte) · [ETL / ELT](#etl--elt) · [dbt](#dbt) · [SSoT](#ssot) · [SKU](#sku)
+
+This sheet summarizes the **metrics, SQL patterns, and forecasting methods** you’re most likely to use in a Business Data Analyst role. It’s designed for fast recall during cases and on the job.
+
+---
 
 ## Table of Contents
 
-- [1) Core Commercial & Financial KPIs](#1-core-commercial-financial-kpis)
-  - [Revenue & Margin](#revenue-margin)
-  - [Net Sales & Deductions](#net-sales-deductions)
-  - [Growth & Mix](#growth-mix)
-  - [Customer & Product KPIs](#customer-product-kpis)
-  - [Supply & Service](#supply-service)
-- [2) Forecast Accuracy & Diagnostics](#2-forecast-accuracy-diagnostics)
-- [3) Time Series & Forecasting Methods (When/Why)](#3-time-series-forecasting-methods-whenwhy)
-  - [Baselines](#baselines)
-  - [Smoothing](#smoothing)
-  - [ARIMA / SARIMA](#arima-sarima)
-  - [Regression with Exogenous Regressors (Rex/ARIMAX)](#regression-with-exogenous-regressors-rexarimax)
-  - [ML Methods](#ml-methods)
-  - [Intermittent Demand](#intermittent-demand)
-  - [Hierarchical & Reconciliation](#hierarchical-reconciliation)
-- [4) Feature Engineering (cheat list)](#4-feature-engineering-cheat-list)
-- [5) Data Quality & Guardrails](#5-data-quality-guardrails)
-- [6) Ready-to-paste Utilities](#6-ready-to-paste-utilities)
-- [7) Production Notes](#7-production-notes)
-
-**Scope:** General KPIs (finance, growth, product, supply), how to compute them (formulas + SQL), plus a concise tour of forecasting methods and model validation. Vendor-agnostic.
+1. [Core Commercial KPIs](#core-commercial-kpis)
+2. [Pricing / GTN & Profitability](#pricing--gtn--profitability)
+3. [Supply & Operations KPIs](#supply--operations-kpis)
+4. [Time-Series Forecasting Playbook](#time-series-forecasting-playbook)
+5. [Error Metrics (choose wisely)](#error-metrics-choose-wisely)
+6. [SQL Patterns (Spines, Rolling, De-dupe, Joins)](#sql-patterns-spines-rolling-de-dupe-joins)
+7. [Feature Engineering (Promo, Price, Calendar)](#feature-engineering-promo-price-calendar)
+8. [Validation & Experimentation](#validation--experimentation)
+9. [Common Pitfalls & Checklists](#common-pitfalls--checklists)
+10. [Glossary of Abbreviations](#glossary-of-abbreviations)
 
 ---
 
-## 1) Core Commercial & Financial KPIs
+## Core Commercial KPIs
 
-### Revenue & Margin
+**Units**
 
-- **Revenue** = Σ `price * quantity`
-- **COGS** = Σ cost of goods sold
-- **Gross Margin (CHF)** = Revenue − COGS
-- **Gross Margin %** = (Revenue − COGS) / NULLIF(Revenue, 0)
+- Raw volume at the chosen grain (brand/sku × region × period).
+- _Careful:_ changes in pack size or SKU mix can mask trends.
 
-**SQL (monthly):**
+**Net Sales (≈ Net Revenue)**
+\(\textbf{Net Sales} = \text{Gross Sales} - \text{Rebates/Discounts}\)
 
-```sql
-SELECT
-  date_trunc('month', order_ts)::date AS month_start,
-  SUM(price * qty) AS revenue,
-  SUM(cogs) AS cogs,
-  SUM(price * qty) - SUM(cogs) AS gross_margin_chf,
-  CASE WHEN SUM(price * qty)=0 THEN NULL
-       ELSE (SUM(price * qty) - SUM(cogs)) / SUM(price * qty) END AS gross_margin_pct
-FROM fct_orders
-GROUP BY 1
-ORDER BY 1;
-```
+**ASP (Average Selling Price)**
+\(\textbf{ASP} = \frac{\text{Net Sales}}{\text{Units}}\)
 
-### Net Sales & Deductions
+- _Careful:_ segment/pack mix affects ASP; consider mix-adjusted ASP.
 
-- **Net Sales** = Gross Sales − Deductions (rebates, discounts, returns).
-- **Net Sales %** = Net Sales / NULLIF(Gross Sales, 0).
+**Share & Growth**
 
-```sql
-SELECT
-  month_start,
-  SUM(gross_sales_chf) AS gross,
-  SUM(rebates_chf + discounts_chf + returns_chf) AS deductions,
-  SUM(gross_sales_chf) - SUM(rebates_chf + discounts_chf + returns_chf) AS net
-FROM mart_gtn -- a monthly mart
-GROUP BY 1;
-```
+- **Market Share** = Your Units ÷ Market Units (or Net Sales ÷ Market Net Sales).
+- **Growth vs LY** = \(\frac{\text{This} - \text{LY}}{\text{LY}}\). Align calendars; handle missing months.
 
-### Growth & Mix
+**Promo Efficiency**
 
-- **MoM Growth** = (This − Last) / Last
-- **YoY Growth** = (This_Yr_Same_Month − Last_Yr_Same_Month) / Last_Yr_Same_Month
-- **Mix %** (share of total) = Segment / Σ Segment
+- **Lift** = (Units during promo − Baseline) ÷ Baseline.
+- **ROI** = Incremental Net Sales ÷ Promo Spend.
+
+**SQL snippet (MoM growth with LAG):**
 
 ```sql
 WITH m AS (
-  SELECT date_trunc('month', ts)::date AS month_start, segment, SUM(metric) AS x
-  FROM fct_events GROUP BY 1,2
+  SELECT make_date(year, month, 1) AS month_start, brand,
+         SUM(net_sales_chf) AS net_sales
+  FROM rps.mart_gtn_waterfall
+  GROUP BY 1,2
 )
-SELECT
-  month_start, segment, x,
-  LAG(x) OVER (PARTITION BY segment ORDER BY month_start) AS prev_x,
-  CASE WHEN LAG(x) OVER (PARTITION BY segment ORDER BY month_start) IN (0,NULL) THEN NULL
-       ELSE x / LAG(x) OVER (PARTITION BY segment ORDER BY month_start) - 1 END AS mom_growth,
-  x / NULLIF(SUM(x) OVER (PARTITION BY month_start), 0) AS mix_pct
+SELECT month_start, brand, net_sales,
+       LAG(net_sales) OVER (PARTITION BY brand ORDER BY month_start) AS prev,
+       CASE WHEN LAG(net_sales) OVER (PARTITION BY brand ORDER BY month_start)=0
+            THEN NULL
+            ELSE net_sales / NULLIF(LAG(net_sales) OVER (PARTITION BY brand ORDER BY month_start),0) - 1
+       END AS mom_growth
 FROM m
-ORDER BY segment, month_start;
+ORDER BY brand, month_start;
 ```
 
-### Customer & Product KPIs
+---
 
-- **ARPU** = Revenue / Active Users
-- **CAC** = (Sales + Marketing Spend) / New Customers
-- **LTV (simplified)** = ARPU × Gross Margin % × Avg Customer Lifetime (periods)
-- **Conversion Rate** = Conversions / Visitors
-- **Churn Rate** = Churned Customers / Starting Customers
+## Pricing / GTN & Profitability
 
-### Supply & Service
+**Gross-to-Net (GTN) Waterfall**
+Gross → (−) Rebates/Discounts → **Net Sales**. Use a **single source of truth** (SSoT) for definitions.
 
-- **Fill Rate** = Shipped / Ordered
-- **Service Level** = 1 − Stockouts / Opportunities
-- **Days of Supply** = Inventory_on_hand / Avg_daily_demand
+**Gross Margin (GM)**
+\(\textbf{GM} = \frac{\text{Net Sales} - \text{COGS}}{\text{Net Sales}}\)
+
+**Net Sales per Unit / Contribution**
+
+- Net Sales ÷ Units; use for promo ROI, payer/channel analysis.
+
+**SQL: GTN at monthly grain**
 
 ```sql
--- 7-day rolling demand and DoS
-WITH d AS (
-  SELECT date::date AS d, product_id, SUM(units) AS units
-  FROM fct_shipments GROUP BY 1,2
+WITH m AS (
+  SELECT make_date(year, month, 1) AS month_start, brand, canton,
+         SUM(gross_sales_chf) AS gross,
+         SUM(rebates_chf)     AS rebates,
+         SUM(net_sales_chf)   AS net
+  FROM rps.mart_gtn_waterfall
+  GROUP BY 1,2,3
+)
+SELECT month_start, brand, canton, gross, rebates, net,
+       rebates / NULLIF(gross,0) AS rebate_rate
+FROM m
+ORDER BY month_start, brand, canton;
+```
+
+---
+
+## Supply & Operations KPIs
+
+**Days of Supply (DOS)**
+\(\textbf{DOS} = \frac{\text{Inventory On Hand}}{\text{Avg Daily Demand}}\)
+
+**Service Level / OOS Flags**
+
+- **Stockout flag** when inventory ≤ reorder point.
+- Track **late fill** or delay to customer.
+
+**SQL (7-day rolling demand + DOS):**
+
+```sql
+WITH daily AS (
+  SELECT d.date_actual, s.product_id, SUM(s.units) AS units
+  FROM rps.fct_sales s
+  JOIN rps.dim_date d ON d.date_id = s.date_id
+  GROUP BY 1,2
 ),
-r AS (
-  SELECT d, product_id, units,
-         AVG(units) OVER (PARTITION BY product_id ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS avg_7d
-  FROM d
+roll AS (
+  SELECT date_actual, product_id, units,
+         AVG(units) OVER (PARTITION BY product_id ORDER BY date_actual
+                          ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS avg_7d
+  FROM daily
 )
-SELECT d, product_id, inventory_on_hand,
-       CASE WHEN COALESCE(avg_7d,0)=0 THEN NULL ELSE inventory_on_hand/avg_7d END AS days_of_supply
-FROM inv_daily JOIN r USING (d, product_id);
+SELECT date_actual, product_id,
+       GREATEST(0, 2000 - SUM(units) OVER (PARTITION BY product_id ORDER BY date_actual)) AS inventory,
+       300 AS reorder_point,
+       avg_7d,
+       CASE WHEN (GREATEST(0, 2000 - SUM(units) OVER (PARTITION BY product_id ORDER BY date_actual))) <= 300 THEN 1 ELSE 0 END AS stockout_flag,
+       CASE WHEN avg_7d = 0 THEN NULL ELSE (GREATEST(0, 2000 - SUM(units) OVER (PARTITION BY product_id ORDER BY date_actual)) / avg_7d) END AS dos
+FROM roll
+ORDER BY product_id, date_actual;
 ```
 
 ---
 
-## 2) Forecast Accuracy & Diagnostics
+## Time-Series Forecasting Playbook
 
-- **MAE** = AVG(|y − ŷ|)
-- **RMSE** = sqrt(AVG((y − ŷ)^2))
-- **MAPE** = AVG(|y − ŷ| / NULLIF(y, 0))
-- **sMAPE** = AVG( |y − ŷ| / ((|y| + |ŷ|)/2) )
-- **MASE** = MAE / MAE_naive (scale-free)
-- **Bias (ME)** = AVG(y − ŷ)
+**1) Baseline**
 
-**SQL (monthly, actual vs forecast):**
+- Naive seasonal, moving average, or last-4-week mean:
+  \(\hat y*t = \text{mean}(y*{t-1..t-4})\)
 
-```sql
-SELECT
-  month_start,
-  AVG(ABS(actual - forecast)) AS mae,
-  SQRT(AVG(POWER(actual - forecast, 2))) AS rmse,
-  AVG(ABS(actual - forecast) / NULLIF(actual, 0)) AS mape,
-  AVG(actual - forecast) AS bias
-FROM mart_forecast_accuracy
-GROUP BY 1
-ORDER BY 1;
-```
+**2) Simple Causal (our page model)**
+\(\hat y_t = \alpha \cdot \text{PromoSpend}\_t + \beta \cdot \text{RebateRate}\_t + \text{Baseline}(y)\)
 
-**Backtesting tips**
+- Fit with **OLS**; grid search, or **scipy.optimize**.
+- Add **promo lag** (effects show with delay).
 
-- Use **time-series CV**: rolling origin or expanding window.
-- Keep validation periods representative (seasonality, events).
-- Track **stability** across windows, not just one split.
+**3) Classical TS**
 
----
+- **ETS/Holt-Winters** (level/trend/seasonal)
+- **ARIMA/SARIMA** (AR, differencing, MA; seasonal components)
 
-## 3) Time Series & Forecasting Methods (When/Why)
+**4) ML**
 
-### Baselines
+- **XGBoost/LightGBM**, Random Forests with calendar, price, promo, lags; careful with CV.
 
-- **Naïve** (last value), **Seasonal Naïve** (last year’s same period).
-  - Pros: simple, competitive; Cons: no trend/causal info.
+**5) Validation**
 
-### Smoothing
+- **Rolling-origin** (time-aware CV). Avoid leakage: use past-only features for t.
 
-- **Moving Average** (window k): good for noise reduction.
-- **Exponential Smoothing (SES)**: \( \hat{y}_t = lpha y_{t-1} + (1-\alpha)\hat{y}\_{t-1} \)
-- **Holt (trend)** and **Holt–Winters (trend+seasonality)**: handles drift and seasonality.
+**When to prefer which?**
 
-### ARIMA / SARIMA
-
-- For stationary (SARIMA for seasonality). Needs differencing & diagnostics (ACF/PACF).
-- Pros: strong univariate benchmarks; Cons: less interpretable for promos/price.
-
-### Regression with Exogenous Regressors (Rex/ARIMAX)
-
-- Linear or regularized regression with **promo, price, rebate rate, events, holidays**.
-- Add **lags/rolling features** of target and drivers.
-- Pros: interpretable; Cons: leakage risk if you use future covariates.
-
-### ML Methods
-
-- **Gradient Boosting / Random Forest / XGBoost / LightGBM** with engineered features.
-- **Neural nets** (RNN/LSTM, Temporal Fusion Transformer) for complex patterns.
-- Pros: flexible; Cons: need more data, careful validation.
-
-### Intermittent Demand
-
-- **Croston**, **SBA**, **TSB** for sparse sales (many zeros).
-
-### Hierarchical & Reconciliation
-
-- Products → Brands → Regions: fit at multiple levels; reconcile with **MinT** or top-down/bottom-up rules.
-
-**When to choose what**
-
-- Short history, clear seasonality → Holt–Winters.
-- Strong causal drivers → regression with exogenous vars.
-- Many series, limited signal per series → pooled ML with shared features.
-- Need explainability → regression/smoothing baselines.
+- Short horizon + few features → ETS/ARIMA.
+- Strong drivers (price/promo) → OLS/GLM/GBDT.
+- Cold starts / new SKUs → hierarchy, pooling, similarity.
 
 ---
 
-## 4) Feature Engineering (cheat list)
+## Error Metrics (choose wisely)
 
-- **Calendrical:** month, dow, holiday, end-of-quarter, school breaks.
-- **Lags:** y*{t-1}, y*{t-4}, y\_{t-12}.
-- **Rollings:** mean/median over 3/4/12 windows (use past only).
-- **Price/Promo:** promo flag & spend, rebate rate, discount depth.
-- **Censoring/stockouts:** zero-truncate or flags to avoid bias.
-- **Interactions:** promo × season, price × channel.
-
-**SQL lag/rolling example**
-
-```sql
-SELECT
-  month_start,
-  brand,
-  net_sales,
-  LAG(net_sales) OVER (PARTITION BY brand ORDER BY month_start) AS lag_1,
-  AVG(net_sales) OVER (PARTITION BY brand ORDER BY month_start
-                       ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING) AS ma_3
-FROM brand_monthly;
-```
+- **MAE**: \(\frac{1}{n}\sum |y - \hat y|\) — robust, easy to interpret.
+- **RMSE**: \(\sqrt{\frac{1}{n}\sum (y - \hat y)^2}\) — penalizes large errors.
+- **MAPE**: \(\frac{100}{n}\sum \big|\frac{y - \hat y}{y}\big|\) — avoid when \(y \approx 0\).
+- **sMAPE**: \(\frac{100}{n}\sum \frac{|y - \hat y|}{(|y| + |\hat y|)/2}\) — handles zeros better.
+- **WAPE**: \(\frac{\sum |y - \hat y|}{\sum |y|}\) — good with skew.
+- **MASE**: compares vs naive seasonal; unitless and comparable across series.
 
 ---
 
-## 5) Data Quality & Guardrails
+## SQL Patterns (Spines, Rolling, De-dupe, Joins)
 
-- **Grain alignment:** aggregate daily facts to monthly before joining monthly drivers.
-- **No lookahead:** only past information in features.
-- **Duplicates:** de-dupe with `ROW_NUMBER()`; enforce unique keys in marts.
-- **Missing periods:** build a **date spine** so LAG/rolling don’t skip.
-- **Outliers:** winsorize/cap for robust fits; track anomaly flags.
-- **Constraints:** non-negativity for forecasts where appropriate.
-
----
-
-## 6) Ready-to-paste Utilities
-
-**A) Month spine (36 months)**
+**Month spine (3y)**
 
 ```sql
-SELECT generate_series(
-  date_trunc('month', CURRENT_DATE) - interval '35 months',
-  date_trunc('month', CURRENT_DATE),
-  interval '1 month'
-)::date AS month_start;
-```
-
-**B) De-dupe latest snapshot**
-
-```sql
-WITH r AS (
-  SELECT t.*, ROW_NUMBER() OVER (PARTITION BY business_key ORDER BY load_ts DESC, file_seq DESC) rn
-  FROM raw_table t
+WITH months AS (
+  SELECT generate_series(date_trunc('month', now()) - INTERVAL '35 months',
+                         date_trunc('month', now()),
+                         INTERVAL '1 month')::date AS month_start
 )
-SELECT * FROM r WHERE rn = 1;
+SELECT * FROM months;
 ```
 
-**C) Contribution analysis (variance)**
+**Rolling 12 months**
 
 ```sql
-SELECT brand,
-       SUM(actual - forecast) AS variance_units,
-       SUM(actual - forecast) / NULLIF(SUM(actual) OVER (), 0) AS contribution_pct
-FROM mart_forecast_accuracy
-GROUP BY 1
-ORDER BY variance_units DESC;
+SELECT month_start, brand, net_sales,
+       SUM(net_sales) OVER (PARTITION BY brand ORDER BY month_start
+                            ROWS BETWEEN 11 PRECEDING AND CURRENT ROW) AS net_sales_l12m
+FROM rps.mart_gtn_waterfall;
 ```
 
-**D) sMAPE in SQL**
+**De-dupe to latest snapshot**
 
 ```sql
-SELECT AVG( CASE
-  WHEN (ABS(actual) + ABS(forecast)) = 0 THEN 0
-  ELSE ABS(actual - forecast) / ((ABS(actual) + ABS(forecast))/2.0) END ) AS smape
-FROM x;
+WITH ranked AS (
+  SELECT *, ROW_NUMBER() OVER (
+    PARTITION BY business_key ORDER BY load_ts DESC, file_seq DESC
+  ) AS rn
+  FROM raw_table
+)
+SELECT * FROM ranked WHERE rn = 1;
+```
+
+**Safe fact→dim joins**
+
+```sql
+SELECT s.*, p.brand, r.canton, c.channel_name
+FROM rps.fct_sales s
+LEFT JOIN rps.dim_product p ON s.product_id = p.product_id
+LEFT JOIN rps.dim_region  r ON s.region_id  = r.region_id
+LEFT JOIN rps.dim_channel c ON s.channel_id = c.channel_id;
 ```
 
 ---
 
-## 7) Production Notes
+## Feature Engineering (Promo, Price, Calendar)
 
-- **Backtesting** with rolling origin; log your splits & metrics.
-- **Parameter store** for α/β or model options (DB table).
-- **Monitoring**: drift in demand, promo mix, error spikes (weekly).
-- **Explainability**: keep simple benchmarks as a yardstick.
-- **Handoff**: docs for data sources, refresh schedule, and KPIs.
+- **Promo intensity**: spend, touchpoints; carryover with lags/decay.
+- **Price/Net price**: ASP (net/units); price changes/elasticity.
+- **Calendar**: month, week, ISO week, holidays, seasonality flags.
+- **Interaction**: promo × season; price × payer; channel × region.
+- **Outliers**: cap extreme uplifts; winsorize for stability.
+
+---
+
+## Validation & Experimentation
+
+- **Train/valid splits**: last 2–3 months as validation (or rolling).
+- **Backtest**: simulate how you would have predicted at each point.
+- **A/B tests**: when feasible; ensure power and clean assignment.
+- **Diagnostics**: residual plots, autocorrelation, feature importance.
+
+---
+
+## Common Pitfalls & Checklists
+
+**Data & Joins**
+
+- ❌ Fact-to-fact joins without aggregation → double counting.
+- ✅ Align grains (daily vs monthly); aggregate before joining.
+
+**Time**
+
+- ❌ Missing months → broken LAG/rolling.
+- ✅ Build a **date/month spine**, left join to fill gaps.
+
+**Dims**
+
+- ❌ Non-unique dim keys → duplicate matches.
+- ✅ De-dupe in `stg_*` with `ROW_NUMBER()`; enforce constraints.
+
+**Forecasting**
+
+- ❌ Leakage (using future info for past predictions).
+- ✅ Strictly past features for predicting time _t_; rolling CV.
+
+**Presentation**
+
+- ✅ Start with the decision → KPI tiles → trend → deep dive → recs + risks.
+
+---
+
+## Glossary of Abbreviations
+
+| Abbrev                                                | Meaning                                                                   | Notes / Where used                                            |
+| ----------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------- | ---------------------------- | --- | ---------------------------- | ------ | ------- |
+| <a id="kpi"></a>**KPI**                               | Key Performance Indicator                                                 | Core metric guiding decisions (e.g., Net Sales, Units, MAPE). |
+| <a id="gtn"></a>**GTN**                               | Gross-to-Net                                                              | Gross sales minus rebates/discounts; see GTN waterfall.       |
+| <a id="asp"></a>**ASP**                               | Average Selling Price                                                     | Net Sales ÷ Units; mind mix shifts and pack sizes.            |
+| <a id="wac"></a>**WAC**                               | Wholesale Acquisition Cost                                                | U.S. list price; not equal to net.                            |
+| <a id="nr"></a>**NR**                                 | Net Revenue                                                               | Revenue after deductions/rebates; ≈ Net Sales.                |
+| <a id="gm"></a>**GM**                                 | Gross Margin                                                              | (Revenue − COGS) ÷ Revenue.                                   |
+| <a id="cogs"></a>**COGS**                             | Cost of Goods Sold                                                        | Direct costs of production/distribution.                      |
+| <a id="dos"></a>**DOS**                               | Days of Supply                                                            | Inventory ÷ Avg daily demand; stock risk KPI.                 |
+| <a id="oos"></a>**OOS**                               | Out-of-Stock                                                              | Inventory below zero/threshold; often flagged in ops.         |
+| <a id="sla"></a>**SLA**                               | Service Level Agreement                                                   | Target delivery/availability level.                           |
+| <a id="sql"></a>**SQL**                               | Structured Query Language                                                 | Core querying language; see joins/CTEs.                       |
+| <a id="cte"></a>**CTE**                               | Common Table Expression                                                   | `WITH` blocks to structure SQL pipelines.                     |
+| <a id="etl--elt"></a>**ETL / ELT**                    | Extract-Transform-Load / Extract-Load-Transform                           | Pipeline patterns; dbt favors ELT.                            |
+| <a id="dbt"></a>**dbt**                               | data build tool                                                           | SQL+Jinja transformations, tests, lineage.                    |
+| <a id="yoy-qoq-mom-wow"></a>**YoY / QoQ / MoM / WoW** | Year-over-Year / Quarter-over-Quarter / Month-over-Month / Week-over-Week | Standard period deltas; use date spines.                      |
+| <a id="ltm-l12m-l3m"></a>**LTM / L12M / L3M**         | Last Twelve Months / Last 12 / Last 3 Months                              | Rolling windows; ensure continuous time series.               |
+| <a id="cagr"></a>**CAGR**                             | Compound Annual Growth Rate                                               | \(\left(\frac{\text{End}}{\text{Start}}\right)^{1/n} - 1\).   |
+| <a id="mae"></a>**MAE**                               | Mean Absolute Error                                                       | \(\tfrac{1}{n}\sum                                            | y-\hat y                | \). Scale-dependent, robust. |
+| <a id="rmse"></a>**RMSE**                             | Root Mean Squared Error                                                   | \(\sqrt{\tfrac{1}{n}\sum (y-\hat y)^2}\).                     |
+| <a id="mape"></a>**MAPE**                             | Mean Absolute Percentage Error                                            | \(\tfrac{100}{n}\sum \big                                     | \tfrac{y-\hat y}{y}\big | \) (avoid when y≈0).         |
+| <a id="smape"></a>**sMAPE**                           | Symmetric MAPE                                                            | \(\tfrac{100}{n}\sum \frac{                                   | y-\hat y                | }{(                          | y   | +                            | \hat y | )/2}\). |
+| <a id="wape"></a>**WAPE**                             | Weighted APE                                                              | \(\tfrac{\sum                                                 | y-\hat y                | }{\sum                       | y   | }\). Good for skewed demand. |
+| <a id="mase"></a>**MASE**                             | Mean Abs Scaled Error                                                     | Compares vs naive seasonal; unitless.                         |
+| <a id="mad"></a>**MAD**                               | Mean Absolute Deviation                                                   | Mean(                                                         | y-\\hat y               | ); like MAE.                 |
+| <a id="ape"></a>**APE**                               | Absolute Percentage Error                                                 | Per-observation                                               | y-\\hat y               | /                            | y   | .                            |
+| <a id="ols"></a>**OLS**                               | Ordinary Least Squares                                                    | Linear regression fit method.                                 |
+| <a id="glm"></a>**GLM**                               | Generalized Linear Model                                                  | e.g., Poisson/Log link for counts.                            |
+| <a id="ets"></a>**ETS**                               | Exponential Smoothing family                                              | Trend/seasonality; e.g., Holt-Winters.                        |
+| <a id="arima"></a>**ARIMA**                           | AutoRegressive Integrated Moving Average                                  | Time-series with differencing/AR/MA.                          |
+| <a id="prophet"></a>**Prophet**                       | Additive trend/seasonality model                                          | Useful for holidays/seasonality; FB.                          |
+| <a id="xgboost"></a>**XGBoost**                       | Gradient-boosted trees                                                    | Nonlinear features; needs careful CV.                         |
+| <a id="cv"></a>**CV**                                 | Cross-Validation                                                          | Train/validation splits; rolling for time series.             |
+| <a id="ab"></a>**A/B**                                | A/B Test                                                                  | Controlled experiment; check power/segmentation.              |
+| <a id="cac-ltv"></a>**CAC / LTV**                     | Customer Acquisition Cost / Lifetime Value                                | General BA metrics; cohort-aware.                             |
+| <a id="arpu-arr-mrr"></a>**ARPU / ARR / MRR**         | Avg Rev Per User / Annual / Monthly Recurring Rev                         | SaaS finance; sometimes used in analytics.                    |
+| <a id="sku"></a>**SKU**                               | Stock Keeping Unit                                                        | Product identifier; grain-critical.                           |
+| <a id="hcp-hco"></a>**HCP / HCO**                     | Healthcare Professional / Organization                                    | Pharma stakeholders.                                          |
+| <a id="trx-nrx"></a>**TRx / NRx**                     | Total / New Prescriptions                                                 | Rx-based markets.                                             |
+| <a id="rls"></a>**RLS**                               | Row-Level Security                                                        | BI filters by user (e.g., canton).                            |
+| <a id="pii"></a>**PII**                               | Personally Identifiable Information                                       | Handle under GDPR; avoid in marts.                            |
+| <a id="gdpr"></a>**GDPR**                             | EU data privacy regulation                                                | Switzerland aligned; mind cross-border.                       |
+| <a id="ssot"></a>**SSoT**                             | Single Source of Truth                                                    | One governed definition (dbt + catalog).                      |
