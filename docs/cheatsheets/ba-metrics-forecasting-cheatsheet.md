@@ -80,7 +80,7 @@ ORDER BY brand, month_start;
 Gross → (−) Rebates/Discounts → **Net Sales**. Use a **single source of truth** (SSoT) for definitions.
 
 **Gross Margin (GM)**
-\(\textbf{GM} = \frac{\text{Net Sales} - \text{COGS}}{\text{Net Sales}}\)
+`GM = (Net Sales - COGS) / Net Sales`
 
 **Net Sales per Unit / Contribution**
 
