@@ -171,12 +171,27 @@ ORDER BY product_id, date_actual;
 
 ## Error Metrics (choose wisely)
 
-- **MAE**: \(\frac{1}{n}\sum |y - \hat y|\) — robust, easy to interpret.
-- **RMSE**: \(\sqrt{\frac{1}{n}\sum (y - \hat y)^2}\) — penalizes large errors.
-- **MAPE**: \(\frac{100}{n}\sum \big|\frac{y - \hat y}{y}\big|\) — avoid when \(y \approx 0\).
-- **sMAPE**: \(\frac{100}{n}\sum \frac{|y - \hat y|}{(|y| + |\hat y|)/2}\) — handles zeros better.
-- **WAPE**: \(\frac{\sum |y - \hat y|}{\sum |y|}\) — good with skew.
-- **MASE**: compares vs naive seasonal; unitless and comparable across series.
+Let `t = 1..n` and `ŷ_t` be the forecast.
+
+- **MAE** — robust, easy to interpret
+  `MAE = (1/n) * Σ |y_t - ŷ_t|`
+
+- **RMSE** — penalizes large errors
+  `RMSE = sqrt( (1/n) * Σ (y_t - ŷ_t)^2 )`
+
+- **MAPE** — avoid when `y_t ≈ 0` (use sMAPE/WAPE)
+  `MAPE = (100/n) * Σ |(y_t - ŷ_t) / y_t|`
+
+- **sMAPE** — handles zeros better
+  `sMAPE = (100/n) * Σ ( |y_t - ŷ_t| / ( (|y_t| + |ŷ_t|) / 2 ) )`
+
+- **WAPE** — good with skewed demand
+  `WAPE = ( Σ |y_t - ŷ_t| ) / ( Σ |y_t| )`
+
+- **MASE** — comparable across series
+  `MASE = MAE_model / MAE_naive`, where `MAE_naive` is the MAE of a simple naive (e.g., last value or seasonal) forecast on the same series.
+
+_Rules of thumb:_ MAE/WAPE for business readability; RMSE for outlier sensitivity; sMAPE when zeros/near-zeros occur; MASE for cross-series comparison.
 
 ---
 
