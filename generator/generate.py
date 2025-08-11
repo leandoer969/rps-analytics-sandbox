@@ -31,29 +31,45 @@ def connect():
 
 
 def seed_dates(conn):
-    start = (
-        (pd.Timestamp.now(tz=TZ) - pd.DateOffset(years=2)).normalize().replace(day=1)
-    )
-    end = pd.Timestamp.now(tz=TZ).normalize()
-    days = pd.date_range(start, end, freq="D")
+    import pandas as pd
+
+    TZ = "Europe/Zurich"
+
+    # Today in Zurich, then make it naïve (no tz) for storage
+    today = pd.Timestamp.now(tz=TZ).normalize().tz_localize(None)
+    start = (today - pd.DateOffset(years=3)).replace(day=1)  # 3-year spine
+    end = today
+
+    # Daily spine
+    days = pd.date_range(start, end, freq="D")  # datetime64[ns], naïve
     df = pd.DataFrame({"date_id": days})
-    df["year"] = df["date_id"].dt.year
-    df["month"] = df["date_id"].dt.month
+
+    # Simple parts
+    df["year"] = df["date_id"].dt.year.astype(int)
+    df["month"] = df["date_id"].dt.month.astype(int)
     df["week"] = df["date_id"].dt.isocalendar().week.astype(int)
-    df["month_start"] = df["date_id"].values.astype("datetime64[M]")
-    df["week_start"] = df["date_id"] - pd.to_timedelta(
-        df["date_id"].dt.weekday, unit="D"
-    )
+
+    # Robust month/week boundaries
+    df["month_start"] = df["date_id"].dt.to_period("M").dt.start_time.dt.date
+    df["week_start"] = df["date_id"].dt.to_period("W-MON").dt.start_time.dt.date
+
+    # Store date_id as DATE (not timestamp)
+    df["date_id"] = df["date_id"].dt.date
 
     with conn.cursor() as cur:
-        # CASCADE so dependent facts are cleared; RESTART IDs for consistent PKs
+        # Clear dim and anything depending on it (facts) to avoid FK errors
         cur.execute("TRUNCATE TABLE rps.dim_date RESTART IDENTITY CASCADE;")
         path = "/tmp/dim_date.csv"
-        df.to_csv(path, index=False, header=False, date_format="%Y-%m-%d")
+        # Order must match COPY column list below
+        df[["date_id", "year", "month", "week", "month_start", "week_start"]].to_csv(
+            path, index=False, header=False, date_format="%Y-%m-%d"
+        )
         with open(path, "r") as fh:
             cur.copy_expert(
-                "COPY rps.dim_date (date_id, year, month, week, month_start, week_start) "
-                "FROM STDIN WITH (FORMAT CSV)",
+                """
+                COPY rps.dim_date (date_id, year, month, week, month_start, week_start)
+                FROM STDIN WITH (FORMAT CSV)
+                """,
                 fh,
             )
     print(f"Seeded dim_date: {len(df)}")
