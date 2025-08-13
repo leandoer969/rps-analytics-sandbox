@@ -1,29 +1,23 @@
 {{ config(materialized='view') }}
 
 WITH src AS (
-    SELECT *
-    FROM {{ source('rps_raw','rebates_raw') }}
+    SELECT
+        {{ clean_date('date_id') }} AS date_id,
+        {{ clean_text('product_id') }} AS product_id,
+        {{ clean_text('payer_id') }} AS payer_id,
+        {{ clean_text('region_id') }} AS region_id,
+        {{ clean_numeric('rebate_chf') }} AS rebate_chf
+    FROM {{ source('rps_raw', 'rebates_raw') }}
 ),
 
-norm AS (
+final AS (
     SELECT
-        source_system,
-        source_file,
-        raw_ingest_ts,
-        CASE
-            WHEN date_id ~ '^\d{4}-\d{2}-\d{2}$' THEN date_id::date
-            WHEN date_id ~ '^\d{2}\.\d{2}\.\d{4}$' THEN to_date(date_id, 'DD.MM.YYYY')
-            WHEN date_id ~ '^\d{2}/\d{2}/\d{4}$' THEN to_date(date_id, 'MM/DD/YYYY')
-        END AS date_id,
-        nullif(product_id, '') AS product_id,
-        nullif(region_id, '') AS region_id,
-        nullif(payer_id, '') AS payer_id,
-        CASE
-            WHEN rebate_chf ~ '^-?\d+(\.\d+)?$' THEN rebate_chf::numeric
-            WHEN rebate_chf ~ '^-?\d+,\d+$' THEN replace(rebate_chf, ',', '.')::numeric
-        END AS rebate_chf
+        date_id,
+        product_id,
+        payer_id,
+        region_id,
+        rebate_chf
     FROM src
 )
 
-SELECT *
-FROM norm
+SELECT * FROM final
