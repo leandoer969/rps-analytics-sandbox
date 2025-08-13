@@ -4,6 +4,25 @@ import numpy as np
 import pandas as pd
 import psycopg2
 
+# after existing imports:
+from messy import (
+    as_text,
+    add_lineage,
+    messy_numeric,
+    messy_dates,
+    inject_dupes,
+    inject_fk_breaks,
+)
+
+WRITE_RAW = os.getenv("WRITE_RAW", "1") == "1"
+SRC_SYSTEM = os.getenv("SRC_SYSTEM", "erp")
+MESS_RATE_TYPES = float(os.getenv("MESS_RATE_TYPES", "0.15"))
+MESS_RATE_DATES = float(os.getenv("MESS_RATE_DATES", "0.08"))
+MESS_RATE_FK_BREAKS = float(os.getenv("MESS_RATE_FK_BREAKS", "0.02"))
+MESS_RATE_DUPES = float(os.getenv("MESS_RATE_DUPES", "0.02"))
+RAW_RNG = np.random.default_rng(20250813)
+
+
 DB = os.getenv("POSTGRES_DB", "rps")
 USER = os.getenv("POSTGRES_USER", "rps_user")
 PWD = os.getenv("POSTGRES_PASSWORD", "rps_password")
@@ -11,6 +30,18 @@ HOST = os.getenv("POSTGRES_HOST", "postgres")
 PORT = int(os.getenv("POSTGRES_PORT", "5432"))
 SCALE = os.getenv("SCALE", "small").lower()
 TZ = os.getenv("TZ", "Europe/Zurich")
+
+
+# Add a helper to copy to rps_raw.* (TEXT tables)
+def copy_df_raw(conn, df: pd.DataFrame, table: str):
+    cols = ", ".join(df.columns)
+    path = f"/tmp/{table.replace('.', '_')}.csv"
+    df.to_csv(path, index=False, header=False)
+    with conn.cursor() as cur:
+        cur.execute(f"TRUNCATE TABLE {table} RESTART IDENTITY;")
+        with open(path, "r") as fh:
+            cur.copy_expert(f"COPY {table} ({cols}) FROM STDIN WITH (FORMAT CSV)", fh)
+    print(f"Loaded {table}: {len(df)}")
 
 
 def connect():
@@ -358,10 +389,94 @@ def synthesize(conn):
                 )
         print(f"Loaded {table}: {len(df)}")
 
+    # ---- loaders -----------------------------------------------------------
+
+    # existing clean loads (unchanged)
     copy_df(conn, s_df, "rps.fct_sales")
     copy_df(conn, r_df, "rps.fct_rebates")
     copy_df(conn, p_df, "rps.fct_promo")
     copy_df(conn, f_df, "rps.fct_forecast")
+
+    # --- NEW: write messy raw copies to rps_raw.* ---
+    if WRITE_RAW:
+        # SALES raw
+        sr = s_df.copy()
+        # Date to iso string first
+        sr["date_id"] = pd.to_datetime(sr["date_id"]).dt.date.astype(str)
+        # Make some numeric columns messy
+        sr = messy_numeric(
+            sr, ["units", "list_price_chf", "gross_sales_chf"], MESS_RATE_TYPES, RAW_RNG
+        )
+        # FK breaks
+        sr = inject_fk_breaks(
+            sr, ["product_id", "region_id", "channel_id"], MESS_RATE_FK_BREAKS, RAW_RNG
+        )
+        # Date format chaos
+        sr = messy_dates(sr, "date_id", MESS_RATE_DATES, RAW_RNG)
+        # Duplicate business keys
+        sr = inject_dupes(
+            sr,
+            ["date_id", "product_id", "region_id", "channel_id"],
+            MESS_RATE_DUPES,
+            RAW_RNG,
+        )
+        # TEXT + lineage
+        sr = as_text(sr)
+        sr = add_lineage(sr, source_system=SRC_SYSTEM, source_file="sales_raw.csv")
+        copy_df_raw(conn, sr, "rps_raw.sales_raw")
+
+        # REBATES raw
+        rr = r_df.copy()
+        rr["date_id"] = pd.to_datetime(rr["date_id"]).dt.date.astype(str)
+        rr = messy_numeric(rr, ["rebate_chf"], MESS_RATE_TYPES, RAW_RNG)
+        rr = inject_fk_breaks(
+            rr, ["product_id", "payer_id", "region_id"], MESS_RATE_FK_BREAKS, RAW_RNG
+        )
+        rr = messy_dates(rr, "date_id", MESS_RATE_DATES, RAW_RNG)
+        rr = inject_dupes(
+            rr, ["date_id", "product_id", "region_id"], MESS_RATE_DUPES, RAW_RNG
+        )
+        rr = as_text(rr)
+        rr = add_lineage(rr, source_system=SRC_SYSTEM, source_file="rebates_raw.csv")
+        copy_df_raw(conn, rr, "rps_raw.rebates_raw")
+
+        # PROMO raw
+        prw = p_df.copy()
+        prw["date_id"] = pd.to_datetime(prw["date_id"]).dt.date.astype(str)
+        prw = messy_numeric(prw, ["spend_chf", "touchpoints"], MESS_RATE_TYPES, RAW_RNG)
+        prw = inject_fk_breaks(
+            prw, ["product_id", "region_id", "channel_id"], MESS_RATE_FK_BREAKS, RAW_RNG
+        )
+        prw = messy_dates(prw, "date_id", MESS_RATE_DATES, RAW_RNG)
+        prw = inject_dupes(
+            prw,
+            ["date_id", "product_id", "region_id", "channel_id"],
+            MESS_RATE_DUPES,
+            RAW_RNG,
+        )
+        prw = as_text(prw)
+        prw = add_lineage(prw, source_system=SRC_SYSTEM, source_file="promo_raw.csv")
+        copy_df_raw(conn, prw, "rps_raw.promo_raw")
+
+        # FORECAST raw
+        fr = f_df.copy()
+        fr["date_id"] = pd.to_datetime(fr["date_id"]).dt.date.astype(str)
+        fr = messy_numeric(
+            fr,
+            ["baseline_units", "uplift_units", "forecast_units"],
+            MESS_RATE_TYPES,
+            RAW_RNG,
+        )
+        fr = inject_fk_breaks(
+            fr, ["product_id", "region_id"], MESS_RATE_FK_BREAKS, RAW_RNG
+        )
+        fr = messy_dates(fr, "date_id", MESS_RATE_DATES, RAW_RNG)
+        fr = inject_dupes(
+            fr, ["date_id", "product_id", "region_id"], MESS_RATE_DUPES, RAW_RNG
+        )
+        fr = as_text(fr)
+        fr = add_lineage(fr, source_system=SRC_SYSTEM, source_file="forecast_raw.csv")
+        copy_df_raw(conn, fr, "rps_raw.forecast_raw")
 
 
 def main():
