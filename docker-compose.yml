@@ -105,7 +105,7 @@ services:
 
   # Optional BI UI (uses its own H2 by default; connect to Postgres in UI)
   metabase:
-    image: metabase/metabase:v0.50.26
+    image: metabase/metabase:v0.56.2.x
     container_name: ${PROJECT:-rps-analytics-sandbox}-metabase
     restart: unless-stopped
     ports:
