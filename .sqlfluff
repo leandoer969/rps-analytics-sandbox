@@ -1,6 +1,12 @@
 [sqlfluff]
 dialect = postgres
-max_line_length = 100
+templater = dbt
+
+[sqlfluff:templater:dbt]
+project_dir = dbt
+profiles_dir = dbt
+profile = rps
+target = dev
 
 [sqlfluff:rules:layout.indent]
 tab_space_size = 4
