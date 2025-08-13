@@ -1,5 +1,6 @@
 -- 02_raw_schema.sql
--- Purpose: Create a dedicated RAW landing area that emulates real-world messy inputs.
+-- Purpose: Create a dedicated RAW landing area that emulates real-world messy inputs
+--          and supports dbt freshness checks via raw_ingest_ts.
 -- This keeps raw data separate from modeled/cleaned tables in schema "rps".
 
 BEGIN;
@@ -7,8 +8,11 @@ BEGIN;
 -- 1) Raw schema
 CREATE SCHEMA IF NOT EXISTS rps_raw;
 
--- Note: We keep raw tables permissive (TEXT everywhere), include lineage fields,
--- and store an ingest timestamp for CDC/late-arrival handling.
+-- Note:
+-- - All business columns stored as TEXT to emulate messy raw data.
+-- - Add lineage fields: source_system, source_file.
+-- - Add raw_ingest_ts for dbt freshness checks.
+-- - Add indexes on raw_ingest_ts for freshness queries.
 
 -- 2) SALES (raw)
 CREATE TABLE IF NOT EXISTS rps_raw.sales_raw (
@@ -20,13 +24,11 @@ CREATE TABLE IF NOT EXISTS rps_raw.sales_raw (
     units TEXT,
     list_price_chf TEXT,
     gross_sales_chf TEXT,
-    -- lineage / metadata
     source_system TEXT,
     source_file TEXT,
     raw_ingest_ts TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS ix_sales_raw_ingest_ts ON rps_raw.sales_raw (raw_ingest_ts);
-CREATE INDEX IF NOT EXISTS ix_sales_raw_source_sys ON rps_raw.sales_raw (source_system);
 
 -- 3) REBATES (raw)
 CREATE TABLE IF NOT EXISTS rps_raw.rebates_raw (
@@ -36,7 +38,6 @@ CREATE TABLE IF NOT EXISTS rps_raw.rebates_raw (
     payer_id TEXT,
     region_id TEXT,
     rebate_chf TEXT,
-    -- lineage / metadata
     source_system TEXT,
     source_file TEXT,
     raw_ingest_ts TIMESTAMPTZ DEFAULT NOW()
@@ -52,7 +53,6 @@ CREATE TABLE IF NOT EXISTS rps_raw.promo_raw (
     channel_id TEXT,
     spend_chf TEXT,
     touchpoints TEXT,
-    -- lineage / metadata
     source_system TEXT,
     source_file TEXT,
     raw_ingest_ts TIMESTAMPTZ DEFAULT NOW()
@@ -68,7 +68,6 @@ CREATE TABLE IF NOT EXISTS rps_raw.forecast_raw (
     baseline_units TEXT,
     uplift_units TEXT,
     forecast_units TEXT,
-    -- lineage / metadata
     source_system TEXT,
     source_file TEXT,
     raw_ingest_ts TIMESTAMPTZ DEFAULT NOW()

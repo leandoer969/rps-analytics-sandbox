@@ -1,0 +1,25 @@
+---
+version: 2
+
+sources:
+  - name: rps_raw
+    database: rps
+    schema: rps_raw
+    description: Raw, messy ingests emitted by generator
+    freshness:
+      warn_after:
+        count: 2
+        period: hour
+      error_after:
+        count: 6
+        period: hour
+
+    tables:
+      - name: sales_raw
+        loaded_at_field: raw_ingest_ts
+      - name: rebates_raw
+        loaded_at_field: raw_ingest_ts
+      - name: promo_raw
+        loaded_at_field: raw_ingest_ts
+      - name: forecast_raw
+        loaded_at_field: raw_ingest_ts

@@ -26,3 +26,4 @@ dbt/.user.yml
 # macOS
 .DS_Store
 .env.generator
+diff.txt
