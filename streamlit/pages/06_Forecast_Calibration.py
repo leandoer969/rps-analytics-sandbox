@@ -542,7 +542,7 @@ with active_col:
         st.metric("α", f"{ap['alpha']:.5f}")
         st.metric("β", f"{ap['beta']:.5f}")
         st.caption(
-            f"Promo lag: {ap.get('promo_lag',0)} mo | Source: {ap.get('provenance','')}"
+            f"Promo lag: {ap.get('promo_lag', 0)} mo | Source: {ap.get('provenance', '')}"
         )
         if ap.get("train_start") is not None and ap.get("train_end") is not None:
             st.caption(

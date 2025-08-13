@@ -153,7 +153,7 @@ if run and sql_text.strip():
             conn.execute(text("SET LOCAL search_path TO rps, public"))
             conn.execute(
                 text("SET LOCAL statement_timeout = :tms"),
-                {"tms": f"{int(timeout_sec*1000)}"},
+                {"tms": f"{int(timeout_sec * 1000)}"},
             )
             if allow_writes and not is_select_like(q):
                 # Execute write/DDL

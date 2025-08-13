@@ -138,7 +138,7 @@ def build_graph_dot(tables: pd.DataFrame, fks: pd.DataFrame) -> str:
     for _, r in fks.iterrows():
         src = r["table_name"]
         dst = r["foreign_table_name"]
-        label = f'{r["column_name"]} → {r["foreign_column_name"]}'
+        label = f"{r['column_name']} → {r['foreign_column_name']}"
         lines.append(f'"{src}" -> "{dst}" [label="{html.escape(label)}", fontsize=9];')
     lines.append("}")
     return "\n".join(lines)
