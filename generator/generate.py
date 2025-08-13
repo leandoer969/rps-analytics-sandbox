@@ -3,6 +3,7 @@ import time
 import numpy as np
 import pandas as pd
 import psycopg2
+import sqlalchemy as sa
 
 # after existing imports:
 from messy import (
@@ -59,6 +60,12 @@ def connect():
         except Exception:
             time.sleep(2)
     raise RuntimeError("Could not connect to Postgres")
+
+
+def connect_engine():
+    """SQLAlchemy engine for pandas read_sql (silences the warnings)."""
+    url = f"postgresql+psycopg2://{USER}:{PWD}@{HOST}:{PORT}/{DB}"
+    return sa.create_engine(url)
 
 
 def seed_dates(conn):
@@ -218,19 +225,21 @@ def synthesize(conn):
         channels = ["Retail", "Hospital"]
         base_mu = 180
 
+    engine = connect_engine()
+
     # --- FIX: ensure Timestamp dtype for comparisons ---
-    dates = pd.read_sql("SELECT date_id FROM rps.dim_date ORDER BY date_id", conn)
+    dates = pd.read_sql("SELECT date_id FROM rps.dim_date ORDER BY date_id", engine)
     dates["date_id"] = pd.to_datetime(dates["date_id"])  # <- add this
     last_date = dates["date_id"].max()
     start_date = last_date - pd.Timedelta(weeks=weeks_per_brand)
     window = dates[dates["date_id"] >= start_date]
 
-    prod = pd.read_sql("SELECT * FROM rps.dim_product ORDER BY product_id", conn)
-    reg = pd.read_sql("SELECT * FROM rps.dim_region ORDER BY region_id", conn).sample(
+    prod = pd.read_sql("SELECT * FROM rps.dim_product ORDER BY product_id", engine)
+    reg = pd.read_sql("SELECT * FROM rps.dim_region ORDER BY region_id", engine).sample(
         n=min(regions_per, 26), random_state=7
     )
-    ch = pd.read_sql("SELECT * FROM rps.dim_channel ORDER BY channel_id", conn)
-    pay = pd.read_sql("SELECT * FROM rps.dim_payer ORDER BY payer_id", conn)
+    ch = pd.read_sql("SELECT * FROM rps.dim_channel ORDER BY channel_id", engine)
+    pay = pd.read_sql("SELECT * FROM rps.dim_payer ORDER BY payer_id", engine)
 
     # SALES
     sales_rows = []
