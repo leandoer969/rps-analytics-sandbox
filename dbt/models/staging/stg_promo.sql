@@ -2,7 +2,7 @@
 
 WITH src AS (
     SELECT *
-    FROM {{ source('rps_raw','rebates_raw') }}
+    FROM {{ source('rps_raw','promo_raw') }}
 ),
 
 norm AS (
@@ -17,11 +17,12 @@ norm AS (
         END AS date_id,
         nullif(product_id, '') AS product_id,
         nullif(region_id, '') AS region_id,
-        nullif(payer_id, '') AS payer_id,
+        nullif(channel_id, '') AS channel_id,
         CASE
-            WHEN rebate_chf ~ '^-?\d+(\.\d+)?$' THEN rebate_chf::numeric
-            WHEN rebate_chf ~ '^-?\d+,\d+$' THEN replace(rebate_chf, ',', '.')::numeric
-        END AS rebate_chf
+            WHEN spend_chf ~ '^-?\d+(\.\d+)?$' THEN spend_chf::numeric
+            WHEN spend_chf ~ '^-?\d+,\d+$' THEN replace(spend_chf, ',', '.')::numeric
+        END AS spend_chf,
+        nullif(touchpoints, '') AS touchpoints
     FROM src
 )
 
