@@ -3,7 +3,7 @@ rps:
   outputs:
     dev:
       type: postgres
-      host: "{{ env_var('POSTGRES_HOST', 'postgres') }}"
+      host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
       user: "{{ env_var('POSTGRES_USER', 'rps_user') }}"
       password: "{{ env_var('POSTGRES_PASSWORD', 'rps_password') }}"
       port: "{{ env_var('POSTGRES_PORT', '5432') | int }}"
