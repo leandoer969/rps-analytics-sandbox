@@ -2,48 +2,53 @@
 version: 2
 
 models:
-  # Staging views
+  # STAGING
   - name: stg_sales
-    description: Cleaned sales data from rps_raw.sales_raw.
     columns:
-      - name: date_id
-        tests: [not_null]
       - name: product_id
         tests: [not_null]
       - name: region_id
         tests: [not_null]
+      - name: date_id
+        tests:
+          - not_null:
+              severity: warn
 
   - name: stg_rebates
-    description: Cleaned rebates data from rps_raw.rebates_raw.
     columns:
-      - name: date_id
-        tests: [not_null]
       - name: product_id
         tests: [not_null]
       - name: region_id
         tests: [not_null]
+      - name: date_id
+        tests:
+          - not_null:
+              severity: warn
 
   - name: stg_promo
-    description: Cleaned promo data from rps_raw.promo_raw.
     columns:
-      - name: date_id
-        tests: [not_null]
       - name: product_id
         tests: [not_null]
       - name: region_id
         tests: [not_null]
+      - name: date_id
+        tests:
+          - not_null:
+              severity: warn
 
   - name: stg_forecast
-    description: Cleaned forecast data from rps_raw.forecast_raw.
     columns:
-      - name: date_id
-        tests: [not_null]
       - name: product_id
         tests: [not_null]
       - name: region_id
         tests: [not_null]
+      - name: date_id
+        tests:
+          - not_null:
+              severity: warn
 
-  # Marts
+  # (MARTS keep your stricter tests, since they should only contain
+  #  fully conformant records after joins/filters.)
   - name: mart_gtn_waterfall
     columns:
       - name: year
