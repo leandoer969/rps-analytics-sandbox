@@ -136,7 +136,7 @@ monthly AS (
     make_date(year, month, 1) AS month_start,
     brand,
     SUM(net_sales_chf) AS net_sales
-  FROM rps.mart_gtn_waterfall
+  FROM rps_core.mart_gtn_waterfall
   GROUP BY 1, 2
 ),
 aligned AS (
@@ -177,11 +177,11 @@ SELECT
   make_date(d.year, d.month, 1) AS month_start,
   p.brand, r.canton, c.channel_name,
   SUM(s.units) AS units, SUM(s.gross_sales_chf) AS gross_sales_chf
-FROM rps.fct_sales s
-LEFT JOIN rps.dim_date d     ON s.date_id    = d.date_id
-LEFT JOIN rps.dim_product p  ON s.product_id = p.product_id
-LEFT JOIN rps.dim_region r   ON s.region_id  = r.region_id
-LEFT JOIN rps.dim_channel c  ON s.channel_id = c.channel_id
+FROM rps_core.fct_sales s
+LEFT JOIN rps_core.dim_date d     ON s.date_id    = d.date_id
+LEFT JOIN rps_core.dim_product p  ON s.product_id = p.product_id
+LEFT JOIN rps_core.dim_region r   ON s.region_id  = r.region_id
+LEFT JOIN rps_core.dim_channel c  ON s.channel_id = c.channel_id
 GROUP BY 1,2,3,4
 ORDER BY 1,2,3;
 ```
@@ -191,8 +191,8 @@ ORDER BY 1,2,3;
 ```sql
 WITH daily AS (
   SELECT d.date_actual, s.product_id, SUM(s.units) AS units
-  FROM rps.fct_sales s
-  JOIN rps.dim_date d ON s.date_id = d.date_id
+  FROM rps_core.fct_sales s
+  JOIN rps_core.dim_date d ON s.date_id = d.date_id
   GROUP BY 1,2
 ),
 rolling AS (
@@ -234,7 +234,7 @@ JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace
 WHERE c.contype = 'p' AND n.nspname = 'rps' AND t.relname = 'fct_sales';
 
 -- Sample rows
-SELECT * FROM rps.mart_gtn_waterfall ORDER BY year DESC, month DESC LIMIT 20;
+SELECT * FROM rps_core.mart_gtn_waterfall ORDER BY year DESC, month DESC LIMIT 20;
 ```
 
 ---
@@ -292,7 +292,7 @@ _Remove dupes:_
 ```sql
 WITH x AS (
   SELECT *, ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY updated_at DESC) rn
-  FROM rps.dim_product_raw
+  FROM rps_core.dim_product_raw
 )
 SELECT * FROM x WHERE rn=1;
 ```
@@ -301,10 +301,10 @@ _Enforce monthly grain:_
 
 ```sql
 SELECT make_date(d.year,d.month,1) AS month_start, p.brand, r.canton, SUM(s.units) AS units
-FROM rps.fct_sales s
-JOIN rps.dim_date d ON s.date_id=d.date_id
-JOIN rps.dim_product p ON s.product_id=p.product_id
-JOIN rps.dim_region r ON s.region_id=r.region_id
+FROM rps_core.fct_sales s
+JOIN rps_core.dim_date d ON s.date_id=d.date_id
+JOIN rps_core.dim_product p ON s.product_id=p.product_id
+JOIN rps_core.dim_region r ON s.region_id=r.region_id
 GROUP BY 1,2,3;
 ```
 
@@ -338,9 +338,9 @@ GROUP BY 1,2,3;
 ```
                 ┌───────────────────────── RAW (Postgres) ─────────────────────────┐
                 │  Facts (daily):                                                  │
-                │    rps.fct_sales, rps.fct_rebates, rps.fct_promo                 │
+                │    rps_core.fct_sales, rps_core.fct_rebates, rps_core.fct_promo                 │
                 │  Dims:                                                           │
-                │    rps.dim_date, dim_product, dim_region, dim_payer, dim_channel │
+                │    rps_core.dim_date, dim_product, dim_region, dim_payer, dim_channel │
                 └──────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -402,12 +402,12 @@ Quick SQL you can paste:
 
 ```sql
 -- Date coverage
-SELECT MIN(date_actual), MAX(date_actual) FROM rps.dim_date;
+SELECT MIN(date_actual), MAX(date_actual) FROM rps_core.dim_date;
 
 -- Dupes at monthly grain (sales)
 WITH m AS (
   SELECT make_date(d.year,d.month,1) AS month_start, product_id, region_id, COUNT(*) c
-  FROM rps.fct_sales s JOIN rps.dim_date d ON s.date_id=d.date_id
+  FROM rps_core.fct_sales s JOIN rps_core.dim_date d ON s.date_id=d.date_id
   GROUP BY 1,2,3
 )
 SELECT * FROM m WHERE c > 31 LIMIT 10; -- sanity for daily rows per month

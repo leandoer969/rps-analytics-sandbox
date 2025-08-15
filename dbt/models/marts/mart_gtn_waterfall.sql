@@ -5,10 +5,10 @@ WITH sales AS (
         p.brand,
         r.canton,
         sum(s.gross_sales_chf) AS gross_sales_chf
-    FROM rps.fct_sales AS s
-    INNER JOIN rps.dim_date AS d ON s.date_id = d.date_id
-    INNER JOIN rps.dim_product AS p ON s.product_id = p.product_id
-    INNER JOIN rps.dim_region AS r ON s.region_id = r.region_id
+    FROM rps_core.fct_sales AS s
+    INNER JOIN rps_core.dim_date AS d ON s.date_id = d.date_id
+    INNER JOIN rps_core.dim_product AS p ON s.product_id = p.product_id
+    INNER JOIN rps_core.dim_region AS r ON s.region_id = r.region_id
     GROUP BY 1, 2, 3, 4
 ),
 
@@ -19,10 +19,10 @@ rebates AS (
         p.brand,
         r.canton,
         sum(rb.rebate_chf) AS rebates_chf
-    FROM rps.fct_rebates AS rb
-    INNER JOIN rps.dim_date AS d ON rb.date_id = d.date_id
-    INNER JOIN rps.dim_product AS p ON rb.product_id = p.product_id
-    INNER JOIN rps.dim_region AS r ON rb.region_id = r.region_id
+    FROM rps_core.fct_rebates AS rb
+    INNER JOIN rps_core.dim_date AS d ON rb.date_id = d.date_id
+    INNER JOIN rps_core.dim_product AS p ON rb.product_id = p.product_id
+    INNER JOIN rps_core.dim_region AS r ON rb.region_id = r.region_id
     GROUP BY 1, 2, 3, 4
 )
 

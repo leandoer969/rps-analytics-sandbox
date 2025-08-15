@@ -6,7 +6,14 @@ profile: "rps"
 
 models:
   rps:
+    core:
+      +materialized: table
+      +schema: core
+
     staging:
       +materialized: view
+      +schema: stg
+
     marts:
       +materialized: table
+      +schema: mart

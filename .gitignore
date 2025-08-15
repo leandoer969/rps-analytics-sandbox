@@ -28,3 +28,4 @@ dbt/.user.yml
 .env.generator
 diff.txt
 logs/dbt.log
+.env.metabase

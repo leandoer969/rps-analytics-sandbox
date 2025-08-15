@@ -55,7 +55,7 @@ WITH m AS (
     make_date(year, month, 1) AS month_start,
     brand,
     SUM(net_sales_chf) AS net_sales
-  FROM rps.mart_gtn_waterfall
+  FROM rps_core.mart_gtn_waterfall
   GROUP BY 1, 2
 )
 SELECT
@@ -94,7 +94,7 @@ WITH m AS (
          SUM(gross_sales_chf) AS gross,
          SUM(rebates_chf)     AS rebates,
          SUM(net_sales_chf)   AS net
-  FROM rps.mart_gtn_waterfall
+  FROM rps_core.mart_gtn_waterfall
   GROUP BY 1,2,3
 )
 SELECT month_start, brand, canton, gross, rebates, net,
@@ -125,8 +125,8 @@ ORDER BY month_start, brand, canton;
 ```sql
 WITH daily AS (
   SELECT d.date_actual, s.product_id, SUM(s.units) AS units
-  FROM rps.fct_sales s
-  JOIN rps.dim_date d ON d.date_id = s.date_id
+  FROM rps_core.fct_sales s
+  JOIN rps_core.dim_date d ON d.date_id = s.date_id
   GROUP BY 1,2
 ),
 roll AS (
@@ -229,7 +229,7 @@ SELECT * FROM months;
 SELECT month_start, brand, net_sales,
        SUM(net_sales) OVER (PARTITION BY brand ORDER BY month_start
                             ROWS BETWEEN 11 PRECEDING AND CURRENT ROW) AS net_sales_l12m
-FROM rps.mart_gtn_waterfall;
+FROM rps_core.mart_gtn_waterfall;
 ```
 
 **De-dupe to latest snapshot**
@@ -248,10 +248,10 @@ SELECT * FROM ranked WHERE rn = 1;
 
 ```sql
 SELECT s.*, p.brand, r.canton, c.channel_name
-FROM rps.fct_sales s
-LEFT JOIN rps.dim_product p ON s.product_id = p.product_id
-LEFT JOIN rps.dim_region  r ON s.region_id  = r.region_id
-LEFT JOIN rps.dim_channel c ON s.channel_id = c.channel_id;
+FROM rps_core.fct_sales s
+LEFT JOIN rps_core.dim_product p ON s.product_id = p.product_id
+LEFT JOIN rps_core.dim_region  r ON s.region_id  = r.region_id
+LEFT JOIN rps_core.dim_channel c ON s.channel_id = c.channel_id;
 ```
 
 ---

@@ -108,6 +108,8 @@ services:
     image: metabase/metabase:v0.56.2.x
     container_name: ${PROJECT:-rps-analytics-sandbox}-metabase
     restart: unless-stopped
+    env_file:
+      - .env.metabase
     ports:
       - "3000:3000"
     environment:
