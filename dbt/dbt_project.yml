@@ -8,12 +8,12 @@ models:
   rps:
     core:
       +materialized: table
-      +schema: rps_core
+      +schema: core
 
     staging:
       +materialized: view
-      +schema: rps_stg
+      +schema: stg
 
     marts:
       +materialized: table
-      +schema: rps_mart
+      +schema: mart
