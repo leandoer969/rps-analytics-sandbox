@@ -13,7 +13,7 @@ def load_data():
         SELECT
             year, month, brand, canton,
             actual_units, forecast_units, baseline_units, uplift_units, mape_units
-        FROM rps.mart_forecast_accuracy
+        FROM rps_mart.mart_forecast_accuracy
         ORDER BY year, month, brand, canton
     """
     df = read_sql_df(sql)
@@ -25,7 +25,7 @@ def load_data():
 df = load_data()
 if df.empty:
     st.warning(
-        "No data found in rps.mart_forecast_accuracy. Run `make restart` to (re)build."
+        "No data found in rps_mart.mart_forecast_accuracy. Run `make restart` to (re)build."
     )
     st.stop()
 

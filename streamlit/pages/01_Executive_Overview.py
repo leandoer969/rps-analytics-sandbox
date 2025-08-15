@@ -10,7 +10,7 @@ st.title("📊 Executive Overview")
 @st.cache_data(ttl=300)
 def load_overview():
     sql = """
-      WITH m AS (SELECT * FROM rps.mart_gtn_waterfall)
+      WITH m AS (SELECT * FROM rps_mart.mart_gtn_waterfall)
       SELECT
           year, month, brand, canton,
           SUM(gross_sales_chf) AS gross_sales,

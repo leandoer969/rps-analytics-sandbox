@@ -21,7 +21,7 @@ with tabs[0]:
         product_id,
         brand,
         SUM(gross_sales_chf) AS sales_chf
-    FROM rps.stg_sales
+    FROM rps_stg.stg_sales
     GROUP BY 1, 2, 3
     ),
     po AS (
@@ -82,11 +82,11 @@ with tabs[2]:
   s.date_id, s.product_id, s.region_id, s.channel_id,
   p.brand, p.molecule, r.canton, c.channel_name,
   s.units, s.gross_sales_chf
-FROM rps.fct_sales AS s
-LEFT JOIN rps.dim_date    AS d ON s.date_id    = d.date_id
-LEFT JOIN rps.dim_product AS p ON s.product_id = p.product_id
-LEFT JOIN rps.dim_region  AS r ON s.region_id  = r.region_id
-LEFT JOIN rps.dim_channel AS c ON s.channel_id = c.channel_id
+FROM rps_core.fct_sales AS s
+LEFT JOIN rps_core.dim_date    AS d ON s.date_id    = d.date_id
+LEFT JOIN rps_core.dim_product AS p ON s.product_id = p.product_id
+LEFT JOIN rps_core.dim_region  AS r ON s.region_id  = r.region_id
+LEFT JOIN rps_core.dim_channel AS c ON s.channel_id = c.channel_id
 ORDER BY month_start, p.brand, r.canton;"""
     st.code(sql, language="sql")
     st.dataframe(read_sql_df(sql).head(100), use_container_width=True)
@@ -99,8 +99,8 @@ with tabs[3]:
         d.date_actual,
         s.product_id,
         SUM(s.units) AS units
-    FROM rps.fct_sales AS s
-    JOIN rps.dim_date  AS d ON s.date_id = d.date_id
+    FROM rps_core.fct_sales AS s
+    JOIN rps_core.dim_date  AS d ON s.date_id = d.date_id
     GROUP BY 1,2,3
     ),
     rolling AS (

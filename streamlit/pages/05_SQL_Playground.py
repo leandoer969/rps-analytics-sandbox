@@ -22,7 +22,7 @@ EXAMPLES = {
 WITH monthly AS (
   SELECT make_date(year, month, 1) AS month_start, product_id, brand,
          SUM(gross_sales_chf) AS sales_chf
-  FROM rps.stg_sales
+  FROM rps_stg.stg_sales
   GROUP BY 1,2,3
 )
 SELECT month_start, product_id, brand, sales_chf,
@@ -52,16 +52,16 @@ SELECT * FROM ranked WHERE rn = 1 ORDER BY product_id, as_of_date;
     "Join facts → dims": """
 SELECT make_date(d.year, d.month, 1) AS month_start, s.product_id, p.brand, r.canton,
        s.units, s.gross_sales_chf
-FROM rps.fct_sales s
-LEFT JOIN rps.dim_date d    ON s.date_id    = d.date_id
-LEFT JOIN rps.dim_product p ON s.product_id = p.product_id
-LEFT JOIN rps.dim_region r  ON s.region_id  = r.region_id
+FROM rps_core.fct_sales s
+LEFT JOIN rps_core.dim_date d    ON s.date_id    = d.date_id
+LEFT JOIN rps_core.dim_product p ON s.product_id = p.product_id
+LEFT JOIN rps_core.dim_region r  ON s.region_id  = r.region_id
 ORDER BY month_start, brand, canton;
 """.strip(),
     "Stockout flag + Days of Supply": """
 WITH daily AS (
   SELECT d.date_actual, s.product_id, SUM(s.units) AS units
-  FROM rps.fct_sales s JOIN rps.dim_date d ON s.date_id = d.date_id
+  FROM rps_core.fct_sales s JOIN rps_core.dim_date d ON s.date_id = d.date_id
   GROUP BY 1,2
 ),
 roll AS (
@@ -90,7 +90,7 @@ if example_name != "(none)":
 
 # --- SQL editor ----------------------------------------------------------------
 default_sql = (
-    "SELECT * FROM rps.mart_gtn_waterfall ORDER BY year, month, brand LIMIT 100;"
+    "SELECT * FROM rps_mart.mart_gtn_waterfall ORDER BY year, month, brand LIMIT 100;"
 )
 sql_text = st.text_area(
     "SQL",

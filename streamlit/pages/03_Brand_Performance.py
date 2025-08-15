@@ -7,7 +7,7 @@ st.title("🏷️ Brand Performance")
 
 @st.cache_data(ttl=300)
 def load_brands():
-    return read_sql_df("SELECT DISTINCT brand FROM rps.mart_brand_perf ORDER BY 1")
+    return read_sql_df("SELECT DISTINCT brand FROM rps_mart.mart_brand_perf ORDER BY 1")
 
 
 brands = load_brands()
@@ -20,7 +20,7 @@ if not brand:
 else:
     perf_sql = """
       SELECT year, month, canton, units, gross_sales_chf, COALESCE(promo_spend, 0) AS promo_spend
-      FROM rps.mart_brand_perf
+      FROM rps_mart.mart_brand_perf
       WHERE brand = :brand
       ORDER BY year, month, canton
     """

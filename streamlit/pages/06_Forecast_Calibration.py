@@ -56,7 +56,7 @@ def canonical_keys(scope_level: str, k1, k2):
 
 def ensure_params_table():
     ddl = """
-    CREATE TABLE IF NOT EXISTS rps.forecast_params (
+    CREATE TABLE IF NOT EXISTS rps_core.forecast_params (
         scope_level TEXT NOT NULL,
         scope_key1  TEXT NOT NULL,
         scope_key2  TEXT NOT NULL,
@@ -80,7 +80,7 @@ def upsert_params(
     ensure_params_table()
     key1, key2 = canonical_keys(scope_level, k1, k2)
     sql = """
-    INSERT INTO rps.forecast_params
+    INSERT INTO rps_core.forecast_params
       (scope_level, scope_key1, scope_key2, alpha, beta, train_start, train_end, updated_at, fit_method, promo_lag)
     VALUES
       (:scope_level, :k1, :k2, :alpha, :beta, :train_start, :train_end, now(), :fit_method, :promo_lag)
@@ -116,7 +116,7 @@ def load_saved_params(scope_level, k1, k2):
     key1, key2 = canonical_keys(scope_level, k1, k2)
     sql = """
       SELECT alpha, beta, train_start, train_end, fit_method, promo_lag, updated_at
-      FROM rps.forecast_params
+      FROM rps_core.forecast_params
       WHERE scope_level = :scope_level
         AND scope_key1 = :k1
         AND scope_key2 = :k2
@@ -140,13 +140,13 @@ WITH perf AS (
   SELECT year, month, brand, canton,
          units,
          COALESCE(promo_spend, 0) AS promo_spend
-  FROM rps.mart_brand_perf
+  FROM rps_mart.mart_brand_perf
 ),
 gtn AS (
   SELECT year, month, brand, canton,
          SUM(gross_sales_chf)  AS gross_sales_chf,
          SUM(rebates_chf)      AS rebates_chf
-  FROM rps.mart_gtn_waterfall
+  FROM rps_mart.mart_gtn_waterfall
   GROUP BY year, month, brand, canton
 ),
 m AS (
