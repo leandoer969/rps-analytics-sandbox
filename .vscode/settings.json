@@ -21,6 +21,7 @@
   "ruff.lint.enable": true,
   "ruff.format.enable": true,
   "ruff.organizeImports": true,
+  "ruff.configuration": "${workspaceFolder}/pyproject.toml",
 
   "sqlfluff.dialect": "postgres",
   "sqlfluff.executablePath": "sqlfluff",

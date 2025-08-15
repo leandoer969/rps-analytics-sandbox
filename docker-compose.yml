@@ -1,4 +1,4 @@
-version: "3.9"
+version: '3.9'
 
 name: rps-analytics-sandbox
 
@@ -11,16 +11,12 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-rps_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rps_password}
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - ./db/init:/docker-entrypoint-initdb.d:ro
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -h localhost -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
-        ]
+      test: ['CMD-SHELL', 'pg_isready -h localhost -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 5s
       timeout: 3s
       retries: 30
@@ -40,19 +36,19 @@ services:
     # Use array form so every arg is explicit; forces TCP to the 'postgres' host.
     entrypoint:
       [
-        "psql",
-        "-h",
-        "postgres",
-        "-p",
-        "5432",
-        "-U",
-        "${POSTGRES_USER:-rps_user}",
-        "-d",
-        "${POSTGRES_DB:-rps}",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "-f",
-        "/schema/01_schema.sql",
+        'psql',
+        '-h',
+        'postgres',
+        '-p',
+        '5432',
+        '-U',
+        '${POSTGRES_USER:-rps_user}',
+        '-d',
+        '${POSTGRES_DB:-rps}',
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-f',
+        '/schema/01_schema.sql',
       ]
 
   # Data generator (Python) – builds locally
@@ -71,7 +67,7 @@ services:
     volumes:
       - ./generator:/app
     working_dir: /app
-    command: ["python", "generate.py"]
+    command: ['python', 'generate.py']
 
   # dbt (Postgres adapter) – local image to avoid arm64 pull issues
   dbt:
@@ -99,7 +95,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "8501:8501"
+      - '8501:8501'
     volumes:
       - ./streamlit:/app
 
@@ -111,7 +107,7 @@ services:
     env_file:
       - .env.metabase
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       MB_DB_TYPE: postgres
       MB_DB_HOST: postgres
@@ -123,8 +119,7 @@ services:
     depends_on:
       - postgres
     healthcheck:
-      test:
-        ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:3000/api/health']
       interval: 10s
       timeout: 3s
       retries: 30

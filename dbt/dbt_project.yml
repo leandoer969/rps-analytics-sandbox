@@ -1,8 +1,8 @@
-name: "rps"
-version: "1.0"
+name: 'rps'
+version: '1.0'
 config-version: 2
 
-profile: "rps"
+profile: 'rps'
 
 models:
   rps:
