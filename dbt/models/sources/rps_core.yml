@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: rps_core
+    schema: rps_core
+    tables:
+      - name: dim_date
+      - name: dim_product
+      - name: dim_region
+      - name: dim_payer
+      - name: dim_channel
+      - name: fct_sales
+      - name: fct_rebates
+      - name: fct_promo
+      - name: fct_forecast
