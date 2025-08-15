@@ -55,7 +55,7 @@ def connect():
             conn.autocommit = True
             with conn.cursor() as cur:
                 cur.execute("SET TIME ZONE %s;", (TZ,))
-                cur.execute("SET search_path TO rps, public;")
+                cur.execute("SET search_path TO rps_core, public;")
             return conn
         except Exception:
             time.sleep(2)
@@ -96,7 +96,7 @@ def seed_dates(conn):
 
     with conn.cursor() as cur:
         # Clear dim and anything depending on it (facts) to avoid FK errors
-        cur.execute("TRUNCATE TABLE rps.dim_date RESTART IDENTITY CASCADE;")
+        cur.execute("TRUNCATE TABLE rps_core.dim_date RESTART IDENTITY CASCADE;")
         path = "/tmp/dim_date.csv"
         # Order must match COPY column list below
         df[["date_id", "year", "month", "week", "month_start", "week_start"]].to_csv(
@@ -105,7 +105,7 @@ def seed_dates(conn):
         with open(path, "r") as fh:
             cur.copy_expert(
                 """
-                COPY rps.dim_date (date_id, year, month, week, month_start, week_start)
+                COPY rps_core.dim_date (date_id, year, month, week, month_start, week_start)
                 FROM STDIN WITH (FORMAT CSV)
                 """,
                 fh,
@@ -144,12 +144,12 @@ def seed_regions(conn):
     ]
     df = pd.DataFrame(cantons, columns=["canton", "language_region"])
     with conn.cursor() as cur:
-        cur.execute("TRUNCATE TABLE rps.dim_region RESTART IDENTITY CASCADE;")
+        cur.execute("TRUNCATE TABLE rps_core.dim_region RESTART IDENTITY CASCADE;")
         path = "/tmp/dim_region.csv"
         df.to_csv(path, index=False, header=False)
         with open(path, "r") as fh:
             cur.copy_expert(
-                "COPY rps.dim_region (canton, language_region) FROM STDIN WITH (FORMAT CSV)",
+                "COPY rps_core.dim_region (canton, language_region) FROM STDIN WITH (FORMAT CSV)",
                 fh,
             )
     print("Seeded dim_region:", len(df))
@@ -168,12 +168,12 @@ def seed_payers(conn):
     ]
     df = pd.DataFrame(payers, columns=["payer_name", "payer_type"])
     with conn.cursor() as cur:
-        cur.execute("TRUNCATE TABLE rps.dim_payer RESTART IDENTITY CASCADE;")
+        cur.execute("TRUNCATE TABLE rps_core.dim_payer RESTART IDENTITY CASCADE;")
         path = "/tmp/dim_payer.csv"
         df.to_csv(path, index=False, header=False)
         with open(path, "r") as fh:
             cur.copy_expert(
-                "COPY rps.dim_payer (payer_name, payer_type) FROM STDIN WITH (FORMAT CSV)",
+                "COPY rps_core.dim_payer (payer_name, payer_type) FROM STDIN WITH (FORMAT CSV)",
                 fh,
             )
     print("Seeded dim_payer:", len(df))
@@ -200,12 +200,12 @@ def seed_products(conn):
         rows, columns=["brand", "molecule", "atc_code", "indication", "launch_date"]
     )
     with conn.cursor() as cur:
-        cur.execute("TRUNCATE TABLE rps.dim_product RESTART IDENTITY CASCADE;")
+        cur.execute("TRUNCATE TABLE rps_core.dim_product RESTART IDENTITY CASCADE;")
         path = "/tmp/dim_product.csv"
         df.to_csv(path, index=False, header=False, date_format="%Y-%m-%d")
         with open(path, "r") as fh:
             cur.copy_expert(
-                "COPY rps.dim_product (brand, molecule, atc_code, indication, launch_date) "
+                "COPY rps_core.dim_product (brand, molecule, atc_code, indication, launch_date) "
                 "FROM STDIN WITH (FORMAT CSV)",
                 fh,
             )
@@ -228,18 +228,20 @@ def synthesize(conn):
     engine = connect_engine()
 
     # --- FIX: ensure Timestamp dtype for comparisons ---
-    dates = pd.read_sql("SELECT date_id FROM rps.dim_date ORDER BY date_id", engine)
+    dates = pd.read_sql(
+        "SELECT date_id FROM rps_core.dim_date ORDER BY date_id", engine
+    )
     dates["date_id"] = pd.to_datetime(dates["date_id"])  # <- add this
     last_date = dates["date_id"].max()
     start_date = last_date - pd.Timedelta(weeks=weeks_per_brand)
     window = dates[dates["date_id"] >= start_date]
 
-    prod = pd.read_sql("SELECT * FROM rps.dim_product ORDER BY product_id", engine)
-    reg = pd.read_sql("SELECT * FROM rps.dim_region ORDER BY region_id", engine).sample(
-        n=min(regions_per, 26), random_state=7
-    )
-    ch = pd.read_sql("SELECT * FROM rps.dim_channel ORDER BY channel_id", engine)
-    pay = pd.read_sql("SELECT * FROM rps.dim_payer ORDER BY payer_id", engine)
+    prod = pd.read_sql("SELECT * FROM rps_core.dim_product ORDER BY product_id", engine)
+    reg = pd.read_sql(
+        "SELECT * FROM rps_core.dim_region ORDER BY region_id", engine
+    ).sample(n=min(regions_per, 26), random_state=7)
+    ch = pd.read_sql("SELECT * FROM rps_core.dim_channel ORDER BY channel_id", engine)
+    pay = pd.read_sql("SELECT * FROM rps_core.dim_payer ORDER BY payer_id", engine)
 
     # SALES
     sales_rows = []
@@ -401,10 +403,10 @@ def synthesize(conn):
     # ---- loaders -----------------------------------------------------------
 
     # existing clean loads (unchanged)
-    copy_df(conn, s_df, "rps.fct_sales")
-    copy_df(conn, r_df, "rps.fct_rebates")
-    copy_df(conn, p_df, "rps.fct_promo")
-    copy_df(conn, f_df, "rps.fct_forecast")
+    copy_df(conn, s_df, "rps_core.fct_sales")
+    copy_df(conn, r_df, "rps_core.fct_rebates")
+    copy_df(conn, p_df, "rps_core.fct_promo")
+    copy_df(conn, f_df, "rps_core.fct_forecast")
 
     # --- NEW: write messy raw copies to rps_raw.* ---
     if WRITE_RAW:
@@ -493,8 +495,8 @@ def main():
     with conn.cursor() as cur:
         cur.execute("SELECT current_database(), current_user;")
         print("Connected to:", cur.fetchone())
-        cur.execute("SELECT to_regclass('rps.dim_date');")
-        print("regclass rps.dim_date =", cur.fetchone()[0])
+        cur.execute("SELECT to_regclass('rps_core.dim_date');")
+        print("regclass rps_core.dim_date =", cur.fetchone()[0])
     seed_dates(conn)
     seed_regions(conn)
     seed_payers(conn)
