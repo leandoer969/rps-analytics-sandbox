@@ -23,4 +23,7 @@ def get_engine():
 def read_sql_df(sql: str, params: dict | None = None) -> pd.DataFrame:
     eng = get_engine()
     with eng.connect() as conn:
+        conn.execute(
+            text("SET LOCAL search_path TO rps_mart, rps_stg, rps_core, public")
+        )
         return pd.read_sql(text(sql), conn, params=params or {})
